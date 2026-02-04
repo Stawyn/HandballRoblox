@@ -317,11 +317,21 @@ function HandleBallTouch(ABHBall: SharedTypes.ABHBallInstance)
 		-- Ricochetear bola se o jogador estiver com KeeperTool equipada (nunca captura)
 		if character:FindFirstChild("KeeperTool") then
 			local hrp = humanoidRootPart
-			if hrp and ABHBall.AssemblyLinearVelocity.Magnitude > 1 then
-				-- Calcular direção de rebote
+			if hrp then
+				-- SEMPRE ricochetear, independente da velocidade da bola
+				local currentVelocity = ABHBall.AssemblyLinearVelocity.Magnitude
 				local bounceDirection = (ABHBall.Position - hrp.Position).Unit
-				local bounceSpeed = math.clamp(ABHBall.AssemblyLinearVelocity.Magnitude * 0.5, 15, 60)
-				ABHBall.AssemblyLinearVelocity = bounceDirection * bounceSpeed + Vector3.new(0, 15, 0)
+				
+				-- Se a bola está parada ou lenta, aplicar velocidade mínima de 20
+				local bounceSpeed = math.max(currentVelocity * 0.6, 20)
+				bounceSpeed = math.clamp(bounceSpeed, 20, 70)
+				
+				ABHBall.AssemblyLinearVelocity = bounceDirection * bounceSpeed + Vector3.new(0, 18, 0)
+				ABHBall.AssemblyAngularVelocity = Vector3.zero
+				
+				-- Cooldown para evitar múltiplos ricochetes seguidos
+				if not ballPlayersCooldown[ABHBall] then ballPlayersCooldown[ABHBall] = {} end
+				ballPlayersCooldown[ABHBall][player.UserId] = os.clock()
 				
 				-- Registrar estatística de Save se foi um chute
 				local wasShot = ABHBall:GetAttribute("IsShot") or ABHBall:GetAttribute("IsSOG")
@@ -340,7 +350,7 @@ function HandleBallTouch(ABHBall: SharedTypes.ABHBallInstance)
 					end)
 				end
 			end
-			return
+			return -- SEMPRE retorna, nunca permite captura
 		end
 
 		local forceField = ABHBall:FindFirstChild("ForceField")
