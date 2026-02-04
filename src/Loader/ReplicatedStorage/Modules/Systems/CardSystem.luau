@@ -99,7 +99,7 @@ function cardSystem:GiveRed(player)
 			end)
 		end
 
-		-- Remove o Gui + cartÃµes do jogador apÃ³s ter finalizado os 120 segundos
+		-- Remove o Gui + cartões do jogador após ter finalizado os 120 segundos
 		self:RemovePlayerCards(player)
 	end)
 end

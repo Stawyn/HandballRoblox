@@ -1,6 +1,6 @@
 local Module = {}
 
--- cÃ³digo aqui
+-- código aqui
 
 return Module
 

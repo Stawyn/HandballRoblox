@@ -391,7 +391,7 @@ function AntiHack:CheckTeleportHack(player: Player): boolean
 end
 
 --[[
-	Verifica fly hack (jogador muito alto sem razão).
+	Verifica fly hack (jogador muito alto sem razào).
 	
 	@param player Player - Jogador a verificar
 	@return boolean - True se está hackeando

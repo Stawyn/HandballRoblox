@@ -1,6 +1,6 @@
 local Players = game:GetService("Players")
 
-local ClientNetwork = require("../Implementation/ClientNetwork")
+local ClientNetwork = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("ClientNetwork"))
 local RefereeEvent = ClientNetwork.RefereeEvent
 local RefereeEventRemote = ClientNetwork.RefereeEventRemote
 
@@ -62,7 +62,7 @@ uiCorner.Parent = confirmationFrame
 local confirmText = Instance.new("TextLabel")
 confirmText.Size = UDim2.new(1, -40, 0, 70)
 confirmText.Position = UDim2.new(0, 20, 0, 10)
-confirmText.Text = "Deseja resetar o jogo?\nIsso irÃ¡ limpar todas as estatÃ­sticas e placar."
+confirmText.Text = "Deseja resetar o jogo?\nIsso irá limpar todas as estatísticas e placar."
 confirmText.TextColor3 = Color3.new(1, 1, 1)
 confirmText.TextWrapped = true
 confirmText.BackgroundTransparency = 1
@@ -86,7 +86,7 @@ Instance.new("UICorner", yesButton).CornerRadius = UDim.new(0, 6)
 local noButton = Instance.new("TextButton")
 noButton.Size = UDim2.new(0, 110, 0, 45)
 noButton.Position = UDim2.new(0.75, -55, 0.75, -22)
-noButton.Text = "NÃƒO"
+noButton.Text = "NàƒO"
 noButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
 noButton.TextColor3 = Color3.new(1, 1, 1)
 noButton.Font = Enum.Font.SourceSansBold

@@ -1,23 +1,23 @@
 --[[
 	================================================================================
-	MÃ“DULO: SwitchHands
+	MÓDULO: SwitchHands
 	================================================================================
 	
-	DescriÃ§Ã£o:
-		Controla a troca de mÃ£o (Direita/Esquerda) para segurar a bola.
+	Descrição:
+		Controla a troca de mão (Direita/Esquerda) para segurar a bola.
 		Sincroniza com servidor e atualiza indicador visual.
 	
-	DependÃªncias:
-		- ClientNetwork (SincronizaÃ§Ã£o)
+	Dependências:
+		- ClientNetwork (Sincronização)
 		- InputSystem
-		- ThrowTool (VerificaÃ§Ã£o de estado)
+		- ThrowTool (Verificação de estado)
 	
 	Autor: Sistema ABH
 	================================================================================
 ]]
 
 --// ============================================================================
---// SETOR: ServiÃ§os
+--// SETOR: Serviços
 --// SETOR: Serviços
 --// ============================================================================
 
@@ -57,7 +57,7 @@ InputSystem.Contexts.Hands.Enabled = true
 --// ============================================================================
 
 --[[
-	Atualiza o indicador visual da mÃ£o atual.
+	Atualiza o indicador visual da mão atual.
 	Chamado quando o atributo "CurrentHand" muda no jogador.
 ]]
 function onArmChanged()
@@ -71,16 +71,16 @@ function onArmChanged()
 end
 
 --// ============================================================================
---// SETOR: ConexÃµes
+--// SETOR: Conexões
 --// ============================================================================
 
--- Trata o input de troca de mÃ£o
+-- Trata o input de troca de mão
 InputSystem.Actions.Hands["Switch Hand"].Pressed:Connect(function()
 	if cooldown then
 		return
 	end
 
-	-- NÃ£o pode trocar de mÃ£o enquanto carrega o arremesso
+	-- não pode trocar de mão enquanto carrega o arremesso
 	if ThrowTool:GetCharging() == true then
 		return
 	end

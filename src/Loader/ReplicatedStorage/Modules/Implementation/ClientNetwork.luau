@@ -1,19 +1,19 @@
 --[[
 	================================================================================
-	MÃ“DULO: ClientNetwork
+	MÓDULO: ClientNetwork
 	================================================================================
 	
-	DescriÃ§Ã£o:
+	Descrição:
 		Centraliza todas as chamadas de rede do cliente para o servidor.
 		Encapsula RemoteEvents e RemoteFunctions em uma API limpa.
 	
 	Setores:
 		- Ball: Spawn, drop e clear de bolas
 		- Throw: Arremesso e fake throw
-		- Goalkeeper: AÃ§Ãµes de defesa
+		- Goalkeeper: Ações de defesa
 		- Referee: Controle de partida (gols, timer, nomes)
 		- League: Eventos de liga
-		- PlayerData: ConfiguraÃ§Ãµes de controles
+		- PlayerData: Configurações de controles
 		- Tackling: Roubadas de bola
 	
 	Autor: Sistema ABH
@@ -21,14 +21,14 @@
 ]]
 
 --// ============================================================================
---// SETOR: DependÃªncias
+--// SETOR: Dependências
 --// ============================================================================
 
-local SharedTypes = require("../../../ReplicatedStorage/Utilities/SharedTypes")
+local SharedTypes = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("SharedTypes"))
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 --// ============================================================================
---// SETOR: ReferÃªncias de Rede
+--// SETOR: Referências de Rede
 --// ============================================================================
 
 local NETWORK_FOLDER = ReplicatedStorage:WaitForChild("Network") :: Folder
@@ -42,12 +42,12 @@ local PLAYERDATA_FUNCTION = NETWORK_FOLDER:WaitForChild("PlayerData") :: RemoteF
 local LEAGUE_EVENT = NETWORK_FOLDER:WaitForChild("LeagueEvent") :: RemoteEvent
 
 --// ============================================================================
---// SETOR: Estrutura do MÃ³dulo
+--// SETOR: Estrutura do Módulo
 --// ============================================================================
 
 local ClientNetwork = {}
 
--- Sub-mÃ³dulos organizados por funcionalidade
+-- Sub-módulos organizados por funcionalidade
 ClientNetwork.BallEvents = {}
 ClientNetwork.SwitchHandsEvent = {}
 ClientNetwork.ThrowEvent = {}
@@ -57,7 +57,7 @@ ClientNetwork.TacklingFunction = {}
 ClientNetwork.PlayerDataFunction = {}
 ClientNetwork.LeagueEvent = {}
 
--- ReferÃªncia direta para o RemoteEvent de Ã¡rbitro (usado externamente)
+-- Referência direta para o RemoteEvent de árbitro (usado externamente)
 ClientNetwork.RefereeEventRemote = REFEREE_EVENT
 
 --// ============================================================================
@@ -65,21 +65,21 @@ ClientNetwork.RefereeEventRemote = REFEREE_EVENT
 --// ============================================================================
 
 --[[
-	Solicita pausa tÃ©cnica ao servidor.
+	Solicita pausa técnica ao servidor.
 ]]
 function ClientNetwork.LeagueEvent:CallForTechnicalPause()
 	LEAGUE_EVENT:FireServer("CALL_FOR_PAUSE")
 end
 
 --// ============================================================================
---// SETOR: ConfiguraÃ§Ãµes do Jogador (PlayerData)
+--// SETOR: Configurações do Jogador (PlayerData)
 --// ============================================================================
 
 --[[
-	Altera a tecla de atalho para uma aÃ§Ã£o especÃ­fica.
+	Altera a tecla de atalho para uma ação específica.
 	
 	@param contexto string - Nome do contexto de input
-	@param acao string - Nome da aÃ§Ã£o
+	@param acao string - Nome da ação
 	@param nomeTecla string - Nome da nova tecla
 	@return any - Resposta do servidor
 ]]
@@ -90,11 +90,11 @@ function ClientNetwork.PlayerDataFunction:ChangeKeybind(contexto: string, acao: 
 end
 
 --[[
-	Altera o botÃ£o do gamepad para uma aÃ§Ã£o especÃ­fica.
+	Altera o botào do gamepad para uma ação específica.
 	
 	@param contexto string - Nome do contexto de input
-	@param acao string - Nome da aÃ§Ã£o
-	@param nomeBotao string - Nome do novo botÃ£o
+	@param acao string - Nome da ação
+	@param nomeBotao string - Nome do novo botào
 	@return any - Resposta do servidor
 ]]
 function ClientNetwork.PlayerDataFunction:ChangeGamepad(contexto: string, acao: string, nomeBotao: string)
@@ -104,10 +104,10 @@ function ClientNetwork.PlayerDataFunction:ChangeGamepad(contexto: string, acao: 
 end
 
 --[[
-	Personaliza posiÃ§Ã£o e tamanho de botÃ£o mobile.
+	Personaliza posição e tamanho de botào mobile.
 	
 	@param contexto string - Nome do contexto de input
-	@param acao string - Nome da aÃ§Ã£o
+	@param acao string - Nome da ação
 	@param offset {number} - Deslocamento [x, y]
 	@param escala number - Fator de escala
 	@return any - Resposta do servidor
@@ -119,7 +119,7 @@ function ClientNetwork.PlayerDataFunction:CustomizeMobile(contexto: string, acao
 end
 
 --[[
-	Restaura todas as configuraÃ§Ãµes de controle para o padrÃ£o.
+	Restaura todas as configurações de controle para o padrào.
 	
 	@return any - Resposta do servidor
 ]]
@@ -139,7 +139,7 @@ function ClientNetwork.BallEvents:SpawnRequest()
 end
 
 --[[
-	Solicita remoÃ§Ã£o de todas as bolas.
+	Solicita remoção de todas as bolas.
 ]]
 function ClientNetwork.BallEvents:ClearRequest()
 	BALL_EVENTS:FireServer("ClearRequest")
@@ -153,11 +153,11 @@ function ClientNetwork.BallEvents:DropRequest()
 end
 
 --// ============================================================================
---// SETOR: Troca de MÃ£os
+--// SETOR: Troca de mãos
 --// ============================================================================
 
 --[[
-	Solicita troca de mÃ£o para segurar a bola.
+	Solicita troca de mão para segurar a bola.
 ]]
 function ClientNetwork.SwitchHandsEvent:SwitchRequest()
 	SWITCH_HAND_EVENT:FireServer()
@@ -171,7 +171,7 @@ end
 	Envia dados de arremesso para o servidor.
 	
 	@param poder number - Poder do arremesso (0-100)
-	@param dadosDirecao DirectionData - Dados de direÃ§Ã£o do arremesso
+	@param dadosDirecao DirectionData - Dados de direção do arremesso
 ]]
 function ClientNetwork.ThrowEvent:Throw(poder: number, dadosDirecao: SharedTypes.DirectionData)
 	THROW_EVENT:FireServer(poder, dadosDirecao)
@@ -184,14 +184,14 @@ end
 --[[
 	Notifica o servidor sobre estado de defesa do goleiro.
 	
-	@param estado boolean - True se estÃ¡ defendendo, false caso contrÃ¡rio
+	@param estado boolean - True se está defendendo, false caso contrário
 ]]
 function ClientNetwork.GoalkeeperEvent:Save(estado: boolean)
 	GOALKEEPER_EVENT:FireServer(estado)
 end
 
 --// ============================================================================
---// SETOR: Ãrbitro - Controle de Placar
+--// SETOR: àrbitro - Controle de Placar
 --// ============================================================================
 
 --[[
@@ -228,11 +228,11 @@ function ClientNetwork.RefereeEvent:ResetScore()
 end
 
 --// ============================================================================
---// SETOR: Ãrbitro - Controle de Timer
+--// SETOR: àrbitro - Controle de Timer
 --// ============================================================================
 
 --[[
-	Inicia o cronÃ´metro da partida.
+	Inicia o cronà´metro da partida.
 ]]
 function ClientNetwork.RefereeEvent:StartTimer()
 	REFEREE_EVENT:FireServer({
@@ -242,7 +242,7 @@ function ClientNetwork.RefereeEvent:StartTimer()
 end
 
 --[[
-	Para o cronÃ´metro da partida.
+	Para o cronà´metro da partida.
 ]]
 function ClientNetwork.RefereeEvent:StopTimer()
 	REFEREE_EVENT:FireServer({
@@ -261,7 +261,7 @@ function ClientNetwork.RefereeEvent:ToggleBallTimer()
 end
 
 --[[
-	Reseta o cronÃ´metro para zero.
+	Reseta o cronà´metro para zero.
 ]]
 function ClientNetwork.RefereeEvent:ResetTimer()
 	REFEREE_EVENT:FireServer({
@@ -270,7 +270,7 @@ function ClientNetwork.RefereeEvent:ResetTimer()
 end
 
 --// ============================================================================
---// SETOR: Ãrbitro - Nomes de Times
+--// SETOR: àrbitro - Nomes de Times
 --// ============================================================================
 
 --[[
@@ -288,14 +288,14 @@ function ClientNetwork.RefereeEvent:ChangeTeamName(nome: string, ehHome: boolean
 end
 
 --// ============================================================================
---// SETOR: Ãrbitro - Spawn de Bola
+--// SETOR: àrbitro - Spawn de Bola
 --// ============================================================================
 
 --[[
-	Spawn de bola para cobranÃ§a (free throw).
+	Spawn de bola para cobrança (free throw).
 	
 	@param ehHome boolean - Time que vai cobrar
-	@param posicao Vector3 - PosiÃ§Ã£o do spawn
+	@param posicao Vector3 - Posição do spawn
 ]]
 function ClientNetwork.RefereeEvent:RefSpawn(ehHome: boolean, posicao: Vector3)
 	REFEREE_EVENT:FireServer({
@@ -306,10 +306,10 @@ function ClientNetwork.RefereeEvent:RefSpawn(ehHome: boolean, posicao: Vector3)
 end
 
 --[[
-	Spawn de bola para cobranÃ§a de pÃªnalti.
+	Spawn de bola para cobrança de pênalti.
 	
 	@param ehHome boolean - Time que vai cobrar
-	@param ehHomeGLT boolean - Se o gol Ã© do lado Home
+	@param ehHomeGLT boolean - Se o gol é do lado Home
 ]]
 function ClientNetwork.RefereeEvent:RefPenalty(ehHome: boolean, ehHomeGLT: boolean)
 	REFEREE_EVENT:FireServer({
@@ -329,7 +329,7 @@ function ClientNetwork.RefereeEvent:RemoveBalls()
 end
 
 --// ============================================================================
---// SETOR: Ãrbitro - Controle de Partida
+--// SETOR: àrbitro - Controle de Partida
 --// ============================================================================
 
 --[[

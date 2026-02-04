@@ -111,7 +111,7 @@ for _, pasta in pairs(children) do
 			end
 		end
 	else
-		-- Tratamento Padrão
+		-- Tratamento Padrào
 		local itens = pasta:GetChildren()
 		print("[LOADER] Movendo " .. #itens .. " itens para " .. servico.Name)
 		for _, item in pairs(itens) do

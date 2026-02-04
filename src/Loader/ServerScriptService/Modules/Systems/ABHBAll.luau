@@ -94,7 +94,7 @@ local BALL_INTERACTION_COOLDOWN = 2       -- Tempo entre interações do mesmo j
 local TACKLE_COOLDOWN = 0.5               -- Tempo para reabilitar tackle após pegar bola
 local BALL_OFFSET = CFrame.new(0, -BALL_INSTANCE.Size.Y / 2, BALL_INSTANCE.Size.Z / 2)
 local RELEASE_OFFSET = CFrame.new(0, 0, BALL_INSTANCE.Size.Y / 2)
-local DEFAULT_BALL_TIMER = 5              -- Tempo padrão de posse antes de violação
+local DEFAULT_BALL_TIMER = 5              -- Tempo padrào de posse antes de violação
 local DRAG_CONSTANT = SharedAttributes:GetKDrag()  -- Coeficiente de arrasto
 local POWER_MULTIPLIER = 170              -- Multiplicador base de força de arremesso
 local VERTICAL_AMPLIFIER = Vector3.new(0, 0.0375, 0)  -- Componente vertical do arremesso
@@ -188,7 +188,7 @@ end)
 --// ============================================================================
 
 --[[
-	Referência de índices de conexão por bola:
+	Referência de índices de conexào por bola:
 	ballConnections[ABHBall][1] = Collision (mudança de posse)
 	ballConnections[ABHBall][2] = Ball touch (toque na bola)
 	ballConnections[ABHBall][3] = Ball timer (contagem de tempo)
@@ -225,7 +225,7 @@ function throwPowerTransformation(x: number): number
 	return math.max(0.5, t)
 end
 
---- Conta quantos oponentes estão próximos do jogador
+--- Conta quantos oponentes estào próximos do jogador
 function countOpponentsInRadius(blacklistPlayer: Player, center: Vector3): number
 	local radiusSquared = 10 * 10
 	local count = 0
@@ -370,7 +370,7 @@ function HandleBallTouch(ABHBall: SharedTypes.ABHBallInstance)
 			return
 		end
 
-		-- Raposa: Não permite pegar bola se partida estiver pausada
+		-- Raposa: não permite pegar bola se partida estiver pausada
 		if MATCH_PAUSED.Value then
 			return
 		end
@@ -1113,7 +1113,7 @@ function ABHBall:Throw(player: Player, instance: SharedTypes.ABHBallInstance, di
 
 	instance.CFrame = releasePosition
 
-	-- Correção: Garantir que bola não spawne embaixo do chão
+	-- Correção: Garantir que bola não spawne embaixo do chào
 	local rayParams = RaycastParams.new()
 	rayParams.FilterType = Enum.RaycastFilterType.Exclude
 	rayParams.FilterDescendantsInstances = {BALLS_FOLDER, player.Character}
@@ -1242,7 +1242,7 @@ end
 
 --- Processa tackle de um jogador
 function ABHBall:HandleTackle(instance: SharedTypes.ABHBallInstance, player: Player)	
-	-- Raposa: Não permite tackle se partida pausada
+	-- Raposa: não permite tackle se partida pausada
 	if MATCH_PAUSED.Value then
 		return
 	end
@@ -1261,7 +1261,7 @@ function ABHBall:HandleTackle(instance: SharedTypes.ABHBallInstance, player: Pla
 		end
 	end
 
-	-- Não pode tacklear se já tem bola
+	-- não pode tacklear se já tem bola
 	local ballOwnership = character:FindFirstChild("BallOwnership") :: Motor6D
 	if ballOwnership then
 		return
@@ -1273,7 +1273,7 @@ function ABHBall:HandleTackle(instance: SharedTypes.ABHBallInstance, player: Pla
 		return
 	end
 
-	-- Não pode tacklear bola protegida
+	-- não pode tacklear bola protegida
 	if instance:FindFirstChild("ForceField") then
 		return
 	end

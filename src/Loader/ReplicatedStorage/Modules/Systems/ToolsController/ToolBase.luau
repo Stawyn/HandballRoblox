@@ -1,12 +1,12 @@
 --[[
 	================================================================================
-	MÃ“DULO: ToolBase
+	MÓDULO: ToolBase
 	================================================================================
 	
-	DescriÃ§Ã£o:
+	Descrição:
 		Classe base para todas as ferramentas do jogo.
 		Fornece estrutura padronizada para Equipped, Unequipped e Destroying.
-		Usa Janitor para gerenciamento automÃ¡tico de limpeza.
+		Usa Janitor para gerenciamento automático de limpeza.
 	
 	Uso:
 		local ToolBase = require(path.to.ToolBase)
@@ -15,7 +15,7 @@
 		setmetatable(MinhaTool, {__index = ToolBase})
 		
 		function MinhaTool:aoEquipar()
-			-- LÃ³gica de equipar
+			-- Lógica de equipar
 		end
 	
 	Autor: Sistema ABH
@@ -26,13 +26,13 @@ local ToolBase = {}
 ToolBase.__index = ToolBase
 
 --// ============================================================================
---// SETOR: ServiÃ§os
+--// SETOR: Serviços
 --// ============================================================================
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 --// ============================================================================
---// SETOR: DependÃªncias
+--// SETOR: Dependências
 --// ============================================================================
 
 local Utilities = ReplicatedStorage:WaitForChild("Utilities")
@@ -43,9 +43,9 @@ local Janitor = require(Utilities:WaitForChild("Janitor"))
 --// ============================================================================
 
 --[[
-	Cria uma nova instÃ¢ncia de ToolBase.
+	Cria uma nova instà¢ncia de ToolBase.
 	
-	@return ToolBase - Nova instÃ¢ncia
+	@return ToolBase - Nova instà¢ncia
 ]]
 function ToolBase.new()
 	local self = setmetatable({}, ToolBase)
@@ -56,12 +56,12 @@ function ToolBase.new()
 end
 
 --// ============================================================================
---// SETOR: MÃ©todos Virtuais (para sobrescrever)
+--// SETOR: Métodos Virtuais (para sobrescrever)
 --// ============================================================================
 
 --[[
-	Chamado quando a ferramenta Ã© equipada.
-	Sobrescreva este mÃ©todo na sua ferramenta.
+	Chamado quando a ferramenta é equipada.
+	Sobrescreva este método na sua ferramenta.
 	
 	@param ferramenta Tool - A ferramenta que foi equipada
 ]]
@@ -70,16 +70,16 @@ function ToolBase:aoEquipar(ferramenta: Tool)
 end
 
 --[[
-	Chamado quando a ferramenta Ã© desequipada.
-	Sobrescreva este mÃ©todo na sua ferramenta.
+	Chamado quando a ferramenta é desequipada.
+	Sobrescreva este método na sua ferramenta.
 ]]
 function ToolBase:aoDesequipar()
 	-- Sobrescrever na subclasse
 end
 
 --[[
-	Chamado quando a ferramenta estÃ¡ sendo destruÃ­da.
-	Sobrescreva este mÃ©todo na sua ferramenta.
+	Chamado quando a ferramenta está sendo destruída.
+	Sobrescreva este método na sua ferramenta.
 ]]
 function ToolBase:aoDestruir()
 	-- Sobrescrever na subclasse
@@ -90,11 +90,11 @@ end
 --// ============================================================================
 
 --[[
-	Adiciona uma tarefa ao janitor que serÃ¡ limpa ao desequipar.
-	Use para conexÃµes e objetos temporÃ¡rios durante uso da ferramenta.
+	Adiciona uma tarefa ao janitor que será limpa ao desequipar.
+	Use para conexões e objetos temporários durante uso da ferramenta.
 	
-	@param tarefa any - Tarefa a ser adicionada (conexÃ£o, funÃ§Ã£o, etc.)
-	@param metodoLimpeza string? - MÃ©todo de limpeza opcional ("Disconnect", "Destroy", etc.)
+	@param tarefa any - Tarefa a ser adicionada (conexào, função, etc.)
+	@param metodoLimpeza string? - Método de limpeza opcional ("Disconnect", "Destroy", etc.)
 ]]
 function ToolBase:adicionarTarefa(tarefa: any, metodoLimpeza: string?)
 	if metodoLimpeza then
@@ -105,10 +105,10 @@ function ToolBase:adicionarTarefa(tarefa: any, metodoLimpeza: string?)
 end
 
 --[[
-	Adiciona uma tarefa permanente que sÃ³ serÃ¡ limpa ao destruir a ferramenta.
+	Adiciona uma tarefa permanente que só será limpa ao destruir a ferramenta.
 	
 	@param tarefa any - Tarefa a ser adicionada
-	@param metodoLimpeza string? - MÃ©todo de limpeza opcional
+	@param metodoLimpeza string? - Método de limpeza opcional
 ]]
 function ToolBase:adicionarTarefaPermanente(tarefa: any, metodoLimpeza: string?)
 	if metodoLimpeza then
@@ -119,14 +119,14 @@ function ToolBase:adicionarTarefaPermanente(tarefa: any, metodoLimpeza: string?)
 end
 
 --// ============================================================================
---// SETOR: InicializaÃ§Ã£o
+--// SETOR: Inicialização
 --// ============================================================================
 
 --[[
-	Inicializa a ferramenta com os eventos padrÃ£o.
-	Deve ser chamado pela subclasse apÃ³s a criaÃ§Ã£o.
+	Inicializa a ferramenta com os eventos padrào.
+	Deve ser chamado pela subclasse após a criação.
 	
-	@param ferramenta Tool - A instÃ¢ncia da ferramenta
+	@param ferramenta Tool - A instà¢ncia da ferramenta
 ]]
 function ToolBase:inicializar(ferramenta: Tool)
 	self._ferramenta = ferramenta
@@ -165,13 +165,13 @@ function ToolBase:_onDestroying()
 end
 
 --// ============================================================================
---// SETOR: UtilitÃ¡rios
+--// SETOR: Utilitários
 --// ============================================================================
 
 --[[
 	Retorna a ferramenta associada.
 	
-	@return Tool? - A ferramenta ou nil se nÃ£o inicializada
+	@return Tool? - A ferramenta ou nil se não inicializada
 ]]
 function ToolBase:obterFerramenta(): Tool?
 	return self._ferramenta

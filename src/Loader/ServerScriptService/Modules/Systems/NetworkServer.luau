@@ -35,14 +35,14 @@ local RunService = game:GetService("RunService")
 local ABHLeague = require("../Implementation/ABHLeague")
 local GameStatistics = require("../Systems/GameStatistics")
 local ABHBall = require("../Systems/ABHBAll")
-local Animations = require("../../../ReplicatedStorage/Utilities/ABHAnimations")
-local SharedTypes = require("../../../ReplicatedStorage/Utilities/SharedTypes")
-local SharedAttributes = require("../../../ReplicatedStorage/Modules/Implementation/SharedAttributes")
-local Maid = require("../../../ReplicatedStorage/Utilities/Maid")
-local Janitor = require("../../../ReplicatedStorage/Utilities/Janitor")
+local Animations = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("ABHAnimations"))
+local SharedTypes = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("SharedTypes"))
+local SharedAttributes = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("SharedAttributes"))
+local Maid = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Maid"))
+local Janitor = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Janitor"))
 local Timer = require("../Implementation/Timer")
-local Vector = require("../../../ReplicatedStorage/Utilities/Vector")
-local Utils = require("../../../ReplicatedStorage/Utilities/Utils")
+local Vector = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Vector"))
+local Utils = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Utils"))
 local AntiHack = require("../Security/AntiHack")
 
 --// ============================================================================
@@ -79,7 +79,7 @@ local MATCH_BOOLEAN = DATA_FOLDER:WaitForChild("Match") :: BoolValue
 local MATCH_PAUSED = DATA_FOLDER:WaitForChild("MatchPaused") :: BoolValue
 local TIMER = DATA_FOLDER:WaitForChild("Timer") :: NumberValue
 
--- Valores padrão dos nomes
+-- Valores padrào dos nomes
 HOME_NAME.Value = "HOME"
 AWAY_NAME.Value = "AWAY"
 
@@ -160,7 +160,7 @@ BALL_EVENTS.OnServerEvent:Connect(function(player, action)
 end)
 
 --// ============================================================================
---// SETOR: Handler de Troca de Mãos (SWITCH_HAND_EVENT)
+--// SETOR: Handler de Troca de mãos (SWITCH_HAND_EVENT)
 --// ============================================================================
 
 SWITCH_HAND_EVENT.OnServerEvent:Connect(function(player)
@@ -445,7 +445,7 @@ TACKLING_FUNCTION.OnServerInvoke = function(player: Player)
 		return
 	end
 
-	-- Não pode tacklear se já tem bola
+	-- não pode tacklear se já tem bola
 	if character:FindFirstChild("BallOwnership") then
 		return
 	end

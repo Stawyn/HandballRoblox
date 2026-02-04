@@ -1,15 +1,15 @@
 --[[
 	================================================================================
-	MÃ“DULO: SpawnTool
+	MÓDULO: SpawnTool
 	================================================================================
 	
-	DescriÃ§Ã£o:
-		Ferramenta bÃ¡sica para spawnar (criar) bolas no campo e removÃª-las.
-		Geralmente utilizada para testes ou controle rÃ¡pido.
+	Descrição:
+		Ferramenta básica para spawnar (criar) bolas no campo e removê-las.
+		Geralmente utilizada para testes ou controle rápido.
 	
-	DependÃªncias:
-		- ClientNetwork (ComunicaÃ§Ã£o com servidor)
-		- Maid (Gerenciamento de limpeza de memÃ³ria)
+	Dependências:
+		- ClientNetwork (Comunicação com servidor)
+		- Maid (Gerenciamento de limpeza de memória)
 		- InputSystem (Entrada de comandos)
 	
 	Autor: Sistema ABH
@@ -17,44 +17,44 @@
 ]]
 
 --// ============================================================================
---// SETOR: ServiÃ§os
+--// SETOR: Serviços
 --// ============================================================================
 
 local UserInputService = game:GetService("UserInputService")
 
 --// ============================================================================
---// SETOR: DependÃªncias
+--// SETOR: Dependências
 --// ============================================================================
 
-local ClientNetwork = require("../../Implementation/ClientNetwork")
-local Maid = require("../../../Utilities/Maid")
-local InputSystem = require("../../Implementation/InputSystem")
+local ClientNetwork = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("ClientNetwork"))
+local Maid = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Maid"))
+local InputSystem = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("InputSystem"))
 
 local SpawnTool = {}
 
 --// ============================================================================
---// SETOR: InicializaÃ§Ã£o
+--// SETOR: Inicialização
 --// ============================================================================
 
 --[[
-	Inicializa a ferramenta quando ela Ã© adicionada ao personagem.
+	Inicializa a ferramenta quando ela é adicionada ao personagem.
 	
-	@param tool Tool - A instÃ¢ncia da ferramenta no jogo
+	@param tool Tool - A instà¢ncia da ferramenta no jogo
 ]]
 function SpawnTool:Initialize(tool: Tool)	
 	local toolMaid = Maid.new()
 
 	-- Conecta evento de equipar a ferramenta
 	tool.Equipped:Connect(function()
-		-- Habilita o contexto de input especÃ­fico desta ferramenta
+		-- Habilita o contexto de input específico desta ferramenta
 		InputSystem.Contexts["Spawn Tool"].Enabled = true
 
-		-- Conecta aÃ§Ã£o de Spawn
+		-- Conecta ação de Spawn
 		toolMaid:GiveTask(InputSystem.Actions["Spawn Tool"].Spawn.Pressed:Connect(function()
 			ClientNetwork.BallEvents:SpawnRequest()
 		end))
 
-		-- Conecta aÃ§Ã£o de remover bolas
+		-- Conecta ação de remover bolas
 		toolMaid:GiveTask(InputSystem.Actions["Spawn Tool"]["Remove balls"].Pressed:Connect(function()
 			ClientNetwork.BallEvents:ClearRequest()
 		end))
@@ -62,7 +62,7 @@ function SpawnTool:Initialize(tool: Tool)
 
 	-- Conecta evento de desequipar
 	tool.Unequipped:Connect(function()
-		-- Desabilita contexto e limpa conexÃµes
+		-- Desabilita contexto e limpa conexões
 		InputSystem.Contexts["Spawn Tool"].Enabled = false
 		toolMaid:DoCleaning()
 	end)

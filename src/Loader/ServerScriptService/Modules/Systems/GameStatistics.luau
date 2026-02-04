@@ -390,7 +390,7 @@ task.spawn(function()
 			if timerValue > 0 and timerValue % 120 == 0 then
 				if lastPeriodicMinute ~= minutes then
 					lastPeriodicMinute = minutes
-					sendToDiscord("?? ATUALIZAÇÃO - " .. halfLabel .. " - " .. tostring(minutes) .. " min", StatsData[CurrentHalf], false)
+					sendToDiscord("?? ATUALIZAção - " .. halfLabel .. " - " .. tostring(minutes) .. " min", StatsData[CurrentHalf], false)
 				end
 			end
 

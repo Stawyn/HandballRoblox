@@ -4,14 +4,14 @@ local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
 
 local KeeperTool = {}
-local ClientNetwork = require("../../Implementation/ClientNetwork")
-local Maid = require("../../../Utilities/Maid")
-local Animations = require("../../../Utilities/ABHAnimations")
-local Janitor = require("../../../Utilities/Janitor")
-local VectorLib = require("../../../Utilities/Vector")
-local SharedAttributes = require("../../Implementation/SharedAttributes")
+local ClientNetwork = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("ClientNetwork"))
+local Maid = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Maid"))
+local Animations = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("ABHAnimations"))
+local Janitor = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Janitor"))
+local VectorLib = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Vector"))
+local SharedAttributes = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("SharedAttributes"))
 local MathLib = require("../../../Utilities/Math")
-local InputSystem = require("../../Implementation/InputSystem")
+local InputSystem = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("InputSystem"))
 
 local localPlayer = Players.LocalPlayer :: Player
 local BALLS_FOLDER = workspace:WaitForChild("Core"):WaitForChild("Balls")

@@ -4,9 +4,9 @@ local Lighting = game:GetService("Lighting")
 local Debris = game:GetService("Debris")
 
 local Icon = require("../../Utilities/Icon")
-local ClientNetwork = require("../Implementation/ClientNetwork")
-local InputSystem = require("../Implementation/InputSystem")
-local Janitor = require("../../Utilities/Janitor")
+local ClientNetwork = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("ClientNetwork"))
+local InputSystem = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("InputSystem"))
+local Janitor = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Janitor"))
 
 local UserInputService = game:GetService("UserInputService")
 local isMobile = UserInputService.TouchEnabled

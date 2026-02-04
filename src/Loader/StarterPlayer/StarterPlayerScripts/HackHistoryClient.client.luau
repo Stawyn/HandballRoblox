@@ -5,7 +5,7 @@
 	
 	Descrição:
 		Menu estilo stats que mostra histórico de violações de hack.
-		Acessível via F5 ou botão no topbar (para Officials).
+		Acessível via F5 ou botào no topbar (para Officials).
 		Mostra: jogador, tipo, detalhes, hora, total de violações.
 	
 	Autor: Sistema ABH
@@ -309,7 +309,7 @@ local function createUI()
 	totalCorner.CornerRadius = UDim.new(0, 6)
 	totalCorner.Parent = totalLabel
 
-	-- Botão de fechar
+	-- Botào de fechar
 	local closeBtn = Instance.new("TextButton")
 	closeBtn.Text = "X"
 	closeBtn.Size = UDim2.new(0, isMobile and 30 or 36, 0, isMobile and 30 or 36)
@@ -419,7 +419,7 @@ local function init()
 		end
 	end)
 
-	-- Botão no Topbar usando TopbarPlus/Icon
+	-- Botào no Topbar usando TopbarPlus/Icon
 	task.spawn(function()
 		-- Espera o TopbarPlus/Icon carregar
 		local Icon
@@ -477,7 +477,7 @@ local function init()
 			end)
 		end
 
-		print("[HackHistoryClient] ✅ Botão 🛡️ adicionado no topbar")
+		print("[HackHistoryClient] ✅ Botào 🛡️ adicionado no topbar")
 	end)
 
 	print("[HackHistoryClient] ✅ Menu de histórico inicializado (F5 para abrir)")

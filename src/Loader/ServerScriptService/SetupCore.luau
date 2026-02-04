@@ -43,7 +43,7 @@ local balls = ensureFolder(core, "Balls")
 local glt = ensureFolder(core, "GLT")
 
 -- Garante valores críticos que travam scripts se faltarem
-ensureBoolValue(data, "MatchPaused", false) -- Começa NÃO pausado
+ensureBoolValue(data, "MatchPaused", false) -- Começa não pausado
 ensureBoolValue(data, "GameActive", false)
 
 print("[SetupCore] Verificação de ambiente concluída.")

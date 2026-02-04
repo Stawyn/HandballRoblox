@@ -1,12 +1,12 @@
 --[[
 	================================================================================
-	MÃ“DULO: Utils
+	MÓDULO: Utils
 	================================================================================
 	
-	DescriÃ§Ã£o:
-		FunÃ§Ãµes utilitÃ¡rias compartilhadas entre cliente e servidor.
-		ContÃ©m helpers para manipulaÃ§Ã£o de tabelas, validaÃ§Ã£o de personagens
-		e cÃ¡lculos de proximidade de jogadores.
+	Descrição:
+		Funções utilitárias compartilhadas entre cliente e servidor.
+		Contém helpers para manipulação de tabelas, validação de personagens
+		e cálculos de proximidade de jogadores.
 	
 	Autor: Sistema ABH
 	================================================================================
@@ -15,18 +15,18 @@
 local Utils = {}
 
 --// ============================================================================
---// SETOR: ServiÃ§os
+--// SETOR: Serviços
 --// ============================================================================
 
 local Teams = game:GetService("Teams")
 
 --// ============================================================================
---// SETOR: ManipulaÃ§Ã£o de Tabelas
+--// SETOR: Manipulação de Tabelas
 --// ============================================================================
 
 --[[
 	Combina duas tabelas em uma nova tabela.
-	NÃ£o modifica as tabelas originais.
+	não modifica as tabelas originais.
 	
 	@param tabela1 {T} - Primeira tabela a ser combinada
 	@param tabela2 {T} - Segunda tabela a ser combinada
@@ -53,14 +53,14 @@ function Utils:MergeTables<T>(tabela1: { T }, tabela2: { T }): {T}
 end
 
 --// ============================================================================
---// SETOR: ValidaÃ§Ã£o de Personagem
+--// SETOR: Validação de Personagem
 --// ============================================================================
 
 --[[
-	Valida se um jogador possui um personagem vÃ¡lido com HumanoidRootPart.
+	Valida se um jogador possui um personagem válido com HumanoidRootPart.
 	
 	@param jogador Player - O jogador a ser validado
-	@return (Model?, BasePart?) - Personagem e HumanoidRootPart, ou nil se invÃ¡lido
+	@return (Model?, BasePart?) - Personagem e HumanoidRootPart, ou nil se inválido
 	
 	Exemplo:
 		local personagem, hrp = Utils:ValidarPersonagem(jogador)
@@ -81,10 +81,10 @@ function Utils:ValidarPersonagem(jogador: Player): (Model?, BasePart?)
 end
 
 --[[
-	Valida se um personagem possui um Humanoid vÃ¡lido e vivo.
+	Valida se um personagem possui um Humanoid válido e vivo.
 	
 	@param personagem Model - O modelo do personagem
-	@return Humanoid? - O Humanoid se vÃ¡lido e vivo, nil caso contrÃ¡rio
+	@return Humanoid? - O Humanoid se válido e vivo, nil caso contrário
 ]]
 function Utils:ValidarHumanoid(personagem: Model): Humanoid?
 	local humanoid = personagem:FindFirstChild("Humanoid") :: Humanoid?
@@ -95,27 +95,27 @@ function Utils:ValidarHumanoid(personagem: Model): Humanoid?
 end
 
 --// ============================================================================
---// SETOR: CÃ¡lculos de Proximidade
+--// SETOR: Cálculos de Proximidade
 --// ============================================================================
 
---- Constantes para cÃ¡lculo de proximidade
+--- Constantes para cálculo de proximidade
 local RAIO_DETECCAO = 10
 local RAIO_DETECCAO_QUADRADO = RAIO_DETECCAO * RAIO_DETECCAO
 
 --[[
-	Conta quantos oponentes estÃ£o dentro de um raio especÃ­fico.
+	Conta quantos oponentes estào dentro de um raio específico.
 	Usado para calcular modificadores de poder de arremesso.
 	
-	@param jogadorExcluido Player - Jogador que nÃ£o deve ser contado
-	@param centro Vector3 - PosiÃ§Ã£o central para verificar
-	@return number - Quantidade de oponentes no raio (-1 se time invÃ¡lido)
+	@param jogadorExcluido Player - Jogador que não deve ser contado
+	@param centro Vector3 - Posição central para verificar
+	@return number - Quantidade de oponentes no raio (-1 se time inválido)
 	
-	Nota: O raio de detecÃ§Ã£o Ã© de 10 studs.
+	Nota: O raio de detecção é de 10 studs.
 ]]
 function Utils:ContarOponentesNoRaio(jogadorExcluido: Player, centro: Vector3): number
 	local contagem = 0
 
-	-- Determina o time do jogador e obtÃ©m os oponentes
+	-- Determina o time do jogador e obtém os oponentes
 	local nomeTime = jogadorExcluido.Team.Name :: string
 	local oponentes = {}
 
@@ -130,7 +130,7 @@ function Utils:ContarOponentesNoRaio(jogadorExcluido: Player, centro: Vector3): 
 			Teams["-Home Goalkeeper"]:GetPlayers()
 		)
 	else
-		return -1 -- Time invÃ¡lido (ex: Lobby, Officials)
+		return -1 -- Time inválido (ex: Lobby, Officials)
 	end
 
 	-- Verifica cada oponente
@@ -153,7 +153,7 @@ function Utils:ContarOponentesNoRaio(jogadorExcluido: Player, centro: Vector3): 
 	return contagem
 end
 
--- Alias para compatibilidade com cÃ³digo existente
+-- Alias para compatibilidade com código existente
 Utils.CountOpponentsInRadius = Utils.ContarOponentesNoRaio
 
 return Utils

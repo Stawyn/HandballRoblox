@@ -1,41 +1,41 @@
 --[[
 	================================================================================
-	MÃ“DULO: PowerUI
+	MÓDULO: PowerUI
 	================================================================================
 	
-	DescriÃ§Ã£o:
-		Controlador da interface visual de ForÃ§a (Power) para arremessos.
-		Gerencia a barra de forÃ§a e a barra de "Fixed Power".
+	Descrição:
+		Controlador da interface visual de Força (Power) para arremessos.
+		Gerencia a barra de força e a barra de "Fixed Power".
 	
-	DependÃªncias:
-		- Nenhuma (apenas serviÃ§os do Roblox)
+	Dependências:
+		- Nenhuma (apenas serviços do Roblox)
 	
 	Autor: Sistema ABH
 	================================================================================
 ]]
 
 --// ============================================================================
---// SETOR: ServiÃ§os
+--// SETOR: Serviços
 --// ============================================================================
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 
 --// ============================================================================
---// SETOR: Constantes e ConfiguraÃ§Ãµes
+--// SETOR: Constantes e Configurações
 --// ============================================================================
 
--- Cores da Barra de ForÃ§a
+-- Cores da Barra de Força
 local COLORS = {
 	FULL = Color3.fromRGB(46, 204, 113),    -- Verde Moderno
 	MEDIUM = Color3.fromRGB(241, 196, 15),  -- Amarelo Moderno
 	CRITICAL = Color3.fromRGB(231, 76, 60), -- Vermelho Moderno
-	FIXED_GAIN = Color3.fromRGB(46, 204, 113), -- Ganho de forÃ§a fixa
-	FIXED_LOSS = Color3.fromRGB(192, 57, 43)   -- Perda de forÃ§a fixa
+	FIXED_GAIN = Color3.fromRGB(46, 204, 113), -- Ganho de força fixa
+	FIXED_LOSS = Color3.fromRGB(192, 57, 43)   -- Perda de força fixa
 }
 
 --// ============================================================================
---// SETOR: ReferÃªncias de UI
+--// SETOR: Referências de UI
 --// ============================================================================
 
 local localPlayer = Players.LocalPlayer :: Player
@@ -52,11 +52,11 @@ local fixedPowerUI = powerProgressUI:FindFirstChild("FixedPower") :: Frame
 local PowerUI = {}
 
 --// ============================================================================
---// SETOR: FunÃ§Ãµes Auxiliares de Estilo
+--// SETOR: Funções Auxiliares de Estilo
 --// ============================================================================
 
 --[[
-	Retorna a cor baseada na porcentagem de forÃ§a.
+	Retorna a cor baseada na porcentagem de força.
 ]]
 local function getPowerColor(percentage)
 	if percentage > 0.6 then
@@ -70,7 +70,7 @@ end
 
 --[[
 	Aplica estilos (bordas, cantos arredondados) aos elementos da UI.
-	Executado uma vez na inicializaÃ§Ã£o.
+	Executado uma vez na inicialização.
 ]]
 local function stylizePower()
 	-- Helper para adicionar UICorner
@@ -102,30 +102,30 @@ local function stylizePower()
 	end
 end
 
--- Executa a estilizaÃ§Ã£o inicial em thread separada
+-- Executa a estilização inicial em thread separada
 task.spawn(stylizePower)
 
 --// ============================================================================
---// SETOR: FunÃ§Ãµes PÃºblicas
+--// SETOR: Funções Públicas
 --// ============================================================================
 
 --[[
-	Atualiza visualmente as barras de forÃ§a e forÃ§a fixa.
-	Utiliza Lerp para suavizaÃ§Ã£o, ideal para chamadas frequentes (Heartbeat).
+	Atualiza visualmente as barras de força e força fixa.
+	Utiliza Lerp para suavização, ideal para chamadas frequentes (Heartbeat).
 	
-	@param power number - ForÃ§a atual (0-100)
-	@param fixedPower number - ForÃ§a fixa/base (0-100)
+	@param power number - Força atual (0-100)
+	@param fixedPower number - Força fixa/base (0-100)
 ]]
 function PowerUI:UpdatePower(power: number, fixedPower: number)
 	local powerScale = power / 100
 	local fixedPowerScale = 1 - (fixedPower / 100)
 	local targetColor = getPowerColor(powerScale)
 
-	-- InterpolaÃ§Ã£o Linear (Lerp) para suavizar o movimento da barra principal
+	-- Interpolação Linear (Lerp) para suavizar o movimento da barra principal
 	powerProgressUI.Size = powerProgressUI.Size:Lerp(UDim2.fromScale(powerScale, 1), 0.3)
 	powerProgressUI.BackgroundColor3 = powerProgressUI.BackgroundColor3:Lerp(targetColor, 0.15)
 
-	-- InterpolaÃ§Ã£o Linear (Lerp) para a barra de forÃ§a fixa
+	-- Interpolação Linear (Lerp) para a barra de força fixa
 	fixedPowerUI.Size = fixedPowerUI.Size:Lerp(UDim2.fromScale(fixedPowerScale, 1), 0.3)
 
 	local targetFixedColor = if fixedPowerScale < 0 then COLORS.FIXED_GAIN else COLORS.FIXED_LOSS

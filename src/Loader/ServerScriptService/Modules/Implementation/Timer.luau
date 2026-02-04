@@ -11,7 +11,7 @@
 		- Sincronização com interface
 	
 	Configuração:
-		TIMER_DURATION: Tempo em segundos por tempo de jogo (padrão 10 minutos)
+		TIMER_DURATION: Tempo em segundos por tempo de jogo (padrào 10 minutos)
 	
 	Autor: Sistema ABH
 	Refatorado: Documentação em PT-BR

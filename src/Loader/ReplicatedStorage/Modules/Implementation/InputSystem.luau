@@ -1,51 +1,51 @@
 --[[
 	================================================================================
-	MÃ“DULO: InputSystem (Sistema de Entrada)
+	MÓDULO: InputSystem (Sistema de Entrada)
 	================================================================================
 	
-	DescriÃ§Ã£o:
+	Descrição:
 		Gerencia todos os inputs do jogador (teclado, gamepad, mobile).
-		Fornece acesso centralizado aos contextos e aÃ§Ãµes de input.
+		Fornece acesso centralizado aos contextos e ações de input.
 		Detecta automaticamente o tipo de dispositivo e ajusta a UI.
 	
 	Setores:
 		- Contextos: Golkeeper, Physical, Throw Tool, Hands, Referee, etc.
-		- AÃ§Ãµes: AÃ§Ãµes especÃ­ficas dentro de cada contexto
-		- DetecÃ§Ã£o de dispositivo: Mobile, Gamepad, Teclado
-		- Redimensionamento de UI: Adapta botÃµes ao tamanho da tela
+		- Ações: Ações específicas dentro de cada contexto
+		- Detecção de dispositivo: Mobile, Gamepad, Teclado
+		- Redimensionamento de UI: Adapta botões ao tamanho da tela
 	
 	Autor: Sistema ABH
-	Refatorado: DocumentaÃ§Ã£o em PT-BR
+	Refatorado: Documentação em PT-BR
 	================================================================================
 ]]
 
 --// ============================================================================
---// SETOR: ServiÃ§os do Roblox
+--// SETOR: Serviços do Roblox
 --// ============================================================================
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 
 --// ============================================================================
---// SETOR: ReferÃªncias do Jogador
+--// SETOR: Referências do Jogador
 --// ============================================================================
 
 local localPlayer = Players.LocalPlayer :: Player
 local inputFolder = localPlayer:WaitForChild("InputSystem", math.huge) :: Folder
 local playerGui = localPlayer.PlayerGui
 
--- ReferÃªncias de UI
+-- Referências de UI
 local mobileUI = playerGui:WaitForChild("Mobile")
 local indicatorMain = playerGui:WaitForChild("Indicator"):WaitForChild("Main") :: Frame
 
 --// ============================================================================
---// SETOR: DefiniÃ§Ã£o do MÃ³dulo
+--// SETOR: Definição do Módulo
 --// ============================================================================
 
 local InputSystem = {
 	--// ------------------------------------------------------------------
 	--// Contextos de Input
-	--// Cada contexto agrupa aÃ§Ãµes relacionadas e pode ser habilitado/desabilitado
+	--// Cada contexto agrupa ações relacionadas e pode ser habilitado/desabilitado
 	--// ------------------------------------------------------------------
 	Contexts = {
 		Golkeeper = inputFolder:WaitForChild("Goalkeeper") :: InputContext,
@@ -60,57 +60,57 @@ local InputSystem = {
 	},
 
 	--// ------------------------------------------------------------------
-	--// AÃ§Ãµes de Input
-	--// Cada aÃ§Ã£o representa uma aÃ§Ã£o especÃ­fica que o jogador pode executar
+	--// Ações de Input
+	--// Cada ação representa uma ação específica que o jogador pode executar
 	--// ------------------------------------------------------------------
 	Actions = {
-		-- AÃ§Ãµes do Goleiro
+		-- Ações do Goleiro
 		Goalkeeper = {
 			["Left Predict"] = inputFolder:WaitForChild("Goalkeeper"):WaitForChild("Left Predict") :: InputAction,
 			["Right Predict"] = inputFolder:WaitForChild("Goalkeeper"):WaitForChild("Right Predict") :: InputAction
 		},
 
-		-- AÃ§Ãµes FÃ­sicas (corrida, etc.)
+		-- Ações Físicas (corrida, etc.)
 		Physical = {
 			Sprint = inputFolder:WaitForChild("Physical"):WaitForChild("Sprint") :: InputAction
 		},
 
-		-- AÃ§Ãµes da Ferramenta de Arremesso
+		-- Ações da Ferramenta de Arremesso
 		["Throw Tool"] = {
 			["Fake Throw"] = inputFolder:WaitForChild("Throw Tool"):WaitForChild("Fake Throw") :: InputAction,
 			Throw = inputFolder:WaitForChild("Throw Tool"):WaitForChild("Throw") :: InputAction,
 			Tackle = inputFolder:WaitForChild("Throw Tool"):WaitForChild("Tackle") :: InputAction
 		},
 
-		-- AÃ§Ãµes de Troca de MÃ£os
+		-- Ações de Troca de mãos
 		Hands = {
 			["Switch Hand"] = inputFolder:WaitForChild("Hands"):WaitForChild("Switch Hand") :: InputAction
 		},
 
-		-- AÃ§Ãµes Gerais do Ãrbitro
+		-- Ações Gerais do àrbitro
 		["Referee General"] = {
 			["Remove balls"] = inputFolder:WaitForChild("Referee General"):WaitForChild("Remove balls") :: InputAction
 		},
 
-		-- AÃ§Ãµes da Ferramenta de Spawn
+		-- Ações da Ferramenta de Spawn
 		["Spawn Tool"] = {
 			Spawn = inputFolder:WaitForChild("Spawn Tool"):WaitForChild("Spawn") :: InputAction,
 			["Remove balls"] = inputFolder:WaitForChild("Spawn Tool"):WaitForChild("Remove balls") :: InputAction
 		},
 
-		-- AÃ§Ãµes da Ferramenta de CobranÃ§a
+		-- Ações da Ferramenta de Cobrança
 		["Set Piece Tool"] = {
 			Spawn = inputFolder:WaitForChild("Set Piece Tool"):WaitForChild("Spawn") :: InputAction,
 			["Change Team"] = inputFolder:WaitForChild("Set Piece Tool"):WaitForChild("Change Team") :: InputAction
 		},
 
-		-- AÃ§Ãµes da Ferramenta de PÃªnalti
+		-- Ações da Ferramenta de Pênalti
 		["Penalty Tool"] = {
 			Spawn = inputFolder:WaitForChild("Penalty Tool"):WaitForChild("Spawn") :: InputAction,
 			["Change Team"] = inputFolder:WaitForChild("Penalty Tool"):WaitForChild("Change Team") :: InputAction
 		},
 
-		-- AÃ§Ãµes Gerais
+		-- Ações Gerais
 		["General"] = {
 			Shiftlock = inputFolder:WaitForChild("General"):WaitForChild("Shiftlock") :: InputAction
 		}
@@ -118,16 +118,16 @@ local InputSystem = {
 }
 
 --// ============================================================================
---// SETOR: FunÃ§Ãµes Auxiliares
+--// SETOR: Funções Auxiliares
 --// ============================================================================
 
---- Retorna o tamanho presumido dos botÃµes baseado no tamanho da tela
+--- Retorna o tamanho presumido dos botões baseado no tamanho da tela
 -- @return number - Tamanho em pixels
 function InputSystem:GetPresumedButtonSize()
 	local minAxis = math.min(workspace.CurrentCamera.ViewportSize.X, workspace.CurrentCamera.ViewportSize.Y)
 	local presumedSize = 40
 
-	-- Escala progressiva baseada na resoluÃ§Ã£o
+	-- Escala progressiva baseada na resolução
 	if minAxis >= 370 then
 		presumedSize = 44
 	end
@@ -142,7 +142,7 @@ function InputSystem:GetPresumedButtonSize()
 end
 
 --// ============================================================================
---// SETOR: DetecÃ§Ã£o de Dispositivo
+--// SETOR: Detecção de Dispositivo
 --// ============================================================================
 
 --- Atualiza atributos e UI baseado no tipo de input preferido
@@ -153,7 +153,7 @@ local function PreferredInputChanged()
 		-- MOBILE: Habilita controles touch
 		localPlayer:SetAttribute("Mobile", true)
 		localPlayer:SetAttribute("Gamepad", false)
-		InputSystem.Actions.Physical.Sprint.Enabled = false -- Mobile nÃ£o usa sprint
+		InputSystem.Actions.Physical.Sprint.Enabled = false -- Mobile não usa sprint
 
 	elseif preferredInput == Enum.PreferredInput.Gamepad then
 		-- CONSOLE: Habilita controles de gamepad
@@ -161,7 +161,7 @@ local function PreferredInputChanged()
 		localPlayer:SetAttribute("Gamepad", true)
 
 	else 
-		-- KEYBOARD: Modo padrÃ£o (teclado + mouse)
+		-- KEYBOARD: Modo padrào (teclado + mouse)
 		localPlayer:SetAttribute("Mobile", false)
 		localPlayer:SetAttribute("Gamepad", false)
 		InputSystem.Actions.Physical.Sprint.Enabled = true
@@ -174,7 +174,7 @@ local function PreferredInputChanged()
 	keybindShowerUI.Enabled = not localPlayer:GetAttribute("Mobile")
 end
 
--- Inicializa detecÃ§Ã£o de dispositivo
+-- Inicializa detecção de dispositivo
 PreferredInputChanged()
 UserInputService:GetPropertyChangedSignal("PreferredInput"):Connect(PreferredInputChanged)
 
@@ -182,7 +182,7 @@ UserInputService:GetPropertyChangedSignal("PreferredInput"):Connect(PreferredInp
 --// SETOR: Gerenciamento de Visibilidade de Contextos
 --// ============================================================================
 
---- Atualiza visibilidade dos botÃµes mobile quando contexto muda
+--- Atualiza visibilidade dos botões mobile quando contexto muda
 local function onContextEnableChange(v: InputContext)
 	for u, w in InputSystem.Actions[v.Name] do
 		local inputAction = w :: InputAction
@@ -203,10 +203,10 @@ for i, v in InputSystem.Contexts do
 end
 
 --// ============================================================================
---// SETOR: Redimensionamento de BotÃµes Mobile
+--// SETOR: Redimensionamento de Botões Mobile
 --// ============================================================================
 
---- Redimensiona botÃµes de um contexto especÃ­fico
+--- Redimensiona botões de um contexto específico
 local function resizeButtons(v: InputContext)
 	local presumedSize = InputSystem:GetPresumedButtonSize()
 
@@ -227,7 +227,7 @@ local function resizeButtons(v: InputContext)
 	end
 end
 
---- Verifica e ajusta tamanho de todos os botÃµes baseado na resoluÃ§Ã£o
+--- Verifica e ajusta tamanho de todos os botões baseado na resolução
 local function checkSizeContext()
 	local minAxis = math.min(workspace.CurrentCamera.ViewportSize.X, workspace.CurrentCamera.ViewportSize.Y)
 	local presumedSize = 120
@@ -241,14 +241,14 @@ local function checkSizeContext()
 		indicatorMain.Size = UDim2.fromOffset(presumedSize, 0)
 	end
 
-	-- Redimensiona botÃµes de todos os contextos
+	-- Redimensiona botões de todos os contextos
 	for i, v in InputSystem.Contexts do
 		local context = v :: InputContext
 		coroutine.wrap(resizeButtons)(context)
 	end
 end
 
--- Inicializa tamanhos e conecta ao evento de mudanÃ§a de viewport
+-- Inicializa tamanhos e conecta ao evento de mudança de viewport
 coroutine.wrap(checkSizeContext)()
 workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 	if mobileUI.Enabled then
@@ -257,7 +257,7 @@ workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(functio
 end)
 
 --// ============================================================================
---// SETOR: Retorno do MÃ³dulo
+--// SETOR: Retorno do Módulo
 --// ============================================================================
 
 return InputSystem

@@ -81,11 +81,11 @@ local playerStore = ProfileStore.New(DS_KEY, PROFILE_TEMPLATE)
 local profiles: {[Player]: typeof(playerStore:StartSessionAsync())} = {}
 
 --// ============================================================================
---// SETOR: Constantes de Atributos Padrão
+--// SETOR: Constantes de Atributos Padrào
 --// ============================================================================
 
 local DEFAULT_ATTRIBUTES = {
-	{"CurrentHand", "R"},      -- Mão padrão (R = direita)
+	{"CurrentHand", "R"},      -- mão padrào (R = direita)
 	{"GoalkeeperCooldown", 0}  -- Cooldown do goleiro
 }
 
@@ -278,7 +278,7 @@ function PlayerModule:OnPlayerAdded(player: Player)
 		player:Kick("Profile load fail - Please rejoin")
 	end
 
-	-- Aplica atributos padrão
+	-- Aplica atributos padrào
 	for _, attributeVector in DEFAULT_ATTRIBUTES do
 		player:SetAttribute(attributeVector[1] :: string, attributeVector[2])
 	end

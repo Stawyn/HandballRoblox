@@ -26,7 +26,7 @@ Settings.ENABLE_RESPONSIVE = true
 
 -- (OPTIONAL)
 -- Dynamic scaling makes it easier to read button hints for console users playing from a distance.
---   â€¢ Example: 1Ã— font/icon size at 1080px width â†’ 1.4Ã— font/icon size at 1920px width)
+--   â€¢ Example: 1à— font/icon size at 1080px width â†’ 1.4à— font/icon size at 1920px width)
 --   â€¢ Only active for gamepad (console) users
 --   â€¢ Tweak settings below to ensure your display style scales appropriately
 Settings.ENABLE_DYNAMIC_SCALING = true

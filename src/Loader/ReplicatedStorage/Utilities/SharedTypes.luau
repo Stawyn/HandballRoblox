@@ -1,16 +1,16 @@
 --[[
 	================================================================================
-	MÃ“DULO: SharedTypes
+	MÓDULO: SharedTypes
 	================================================================================
 	
-	DescriÃ§Ã£o:
+	Descrição:
 		Define os tipos compartilhados entre cliente e servidor.
 		Usado para garantir type-safety e autocomplete em todo o projeto.
 	
 	Tipos Exportados:
-		- ForceFieldInstance: InstÃ¢ncia do campo de forÃ§a da bola
-		- ABHBallInstance: InstÃ¢ncia completa da bola ABH
-		- DirectionData: Dados de direÃ§Ã£o para arremessos
+		- ForceFieldInstance: Instà¢ncia do campo de força da bola
+		- ABHBallInstance: Instà¢ncia completa da bola ABH
+		- DirectionData: Dados de direção para arremessos
 	
 	Autor: Sistema ABH
 	================================================================================
@@ -26,14 +26,14 @@ type Timer = {
 } & BillboardGui
 
 --// ============================================================================
---// SETOR: Tipos de ForceField (Campo de ForÃ§a)
+--// SETOR: Tipos de ForceField (Campo de Força)
 --// ============================================================================
 
 --[[
 	ForceFieldInstance
 	
-	Representa o campo de forÃ§a que protege a bola durante cobranÃ§as.
-	ContÃ©m um timer visual e Ã© usado para delimitar Ã¡reas de posse.
+	Representa o campo de força que protege a bola durante cobranças.
+	Contém um timer visual e é usado para delimitar áreas de posse.
 ]]
 export type ForceFieldInstance = {
 	Timer: Timer,
@@ -47,12 +47,12 @@ export type ForceFieldInstance = {
 	ABHBallInstance
 	
 	Estrutura completa de uma bola no jogo ABH.
-	ContÃ©m todas as informaÃ§Ãµes de estado, fÃ­sica e visual.
+	Contém todas as informações de estado, física e visual.
 	
 	Information:
-		- LastPlayerOnBall: Ãšltimo jogador que segurou a bola
-		- LastThrow: Jogador que fez o Ãºltimo arremesso
-		- LastLastThrow: PenÃºltimo jogador que arremessou (para assists)
+		- LastPlayerOnBall: àšltimo jogador que segurou a bola
+		- LastThrow: Jogador que fez o último arremesso
+		- LastLastThrow: Penúltimo jogador que arremessou (para assists)
 		- CurrentPlayerOnBall: Jogador atual segurando a bola
 		- CanTackle: Se a bola pode ser roubada
 		- Timer: Tempo restante de posse
@@ -75,25 +75,25 @@ export type ABHBallInstance = {
 } & MeshPart
 
 --// ============================================================================
---// SETOR: Tipos de Dados de DireÃ§Ã£o
+--// SETOR: Tipos de Dados de Direção
 --// ============================================================================
 
 --[[
 	DirectionData
 	
 	Dados enviados do cliente para o servidor durante um arremesso.
-	ContÃ©m informaÃ§Ãµes sobre a direÃ§Ã£o do personagem, mouse e posiÃ§Ã£o.
+	Contém informações sobre a direção do personagem, mouse e posição.
 	
 	Usado para:
-		- Calcular a trajetÃ³ria da bola
+		- Calcular a trajetória da bola
 		- Aplicar modificadores de poder
-		- Verificar se o arremesso Ã© vÃ¡lido
+		- Verificar se o arremesso é válido
 ]]
 export type DirectionData = { 
-	humanoidRootPartDirection: vector,  -- DireÃ§Ã£o que o personagem estÃ¡ olhando
-	mouseDirection: vector,              -- DireÃ§Ã£o do cursor/cÃ¢mera
-	mousePosition: vector,               -- PosiÃ§Ã£o do hit do mouse
-	humanoidRootPartPosition: vector     -- PosiÃ§Ã£o do HumanoidRootPart
+	humanoidRootPartDirection: vector,  -- Direção que o personagem está olhando
+	mouseDirection: vector,              -- Direção do cursor/cà¢mera
+	mousePosition: vector,               -- Posição do hit do mouse
+	humanoidRootPartPosition: vector     -- Posição do HumanoidRootPart
 }
 
 return {}

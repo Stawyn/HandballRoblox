@@ -3,7 +3,7 @@ local Teams = game:GetService("Teams")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
-local Janitor = require("../../../ReplicatedStorage/Utilities/Janitor")
+local Janitor = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Janitor"))
 
 local MATCH_VALUE = workspace:WaitForChild("Core"):WaitForChild("Data"):WaitForChild("Match") :: BoolValue
 

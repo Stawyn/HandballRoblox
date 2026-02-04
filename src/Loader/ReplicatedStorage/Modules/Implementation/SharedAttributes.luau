@@ -1,9 +1,9 @@
 --[[
 	================================================================================
-	MÃ“DULO: SharedAttributes
+	MÓDULO: SharedAttributes
 	================================================================================
 	
-	DescriÃ§Ã£o:
+	Descrição:
 		Centraliza valores de atributos compartilhados entre cliente e servidor.
 		Define velocidades de movimento, limites de ping e outras constantes.
 	
@@ -18,7 +18,7 @@
 local SharedAttributes = {}
 
 --// ============================================================================
---// SETOR: ServiÃ§os
+--// SETOR: Serviços
 --// ============================================================================
 
 local StarterPlayer = game:GetService("StarterPlayer")
@@ -30,7 +30,7 @@ local StarterPlayer = game:GetService("StarterPlayer")
 --- Velocidade base de caminhada (definida no StarterPlayer)
 local VELOCIDADE_CAMINHADA = StarterPlayer.CharacterWalkSpeed
 
---- BÃ´nus de velocidade ao correr
+--- Bà´nus de velocidade ao correr
 local BONUS_CORRIDA = 7
 
 --- Velocidades do goleiro
@@ -40,7 +40,7 @@ local VELOCIDADE_GOLEIRO_FOCADO = 4
 --- Constante de arrasto da bola
 local CONSTANTE_ARRASTO = 0.7
 
---- Ping mÃ¡ximo permitido para interaÃ§Ãµes
+--- Ping máximo permitido para interações
 local PING_MAXIMO = 350
 
 --// ============================================================================
@@ -48,7 +48,7 @@ local PING_MAXIMO = 350
 --// ============================================================================
 
 --[[
-	Retorna a velocidade de caminhada padrÃ£o.
+	Retorna a velocidade de caminhada padrào.
 	
 	@return number - Velocidade de caminhada (studs/segundo)
 ]]
@@ -66,7 +66,7 @@ function SharedAttributes:GetSprintSpeed(): number
 end
 
 --[[
-	Retorna a velocidade padrÃ£o do goleiro.
+	Retorna a velocidade padrào do goleiro.
 	
 	@return number - Velocidade do goleiro (studs/segundo)
 ]]
@@ -84,11 +84,11 @@ function SharedAttributes:GetGoalkeeperFocusedSpeed(): number
 end
 
 --// ============================================================================
---// SETOR: FÃ­sica
+--// SETOR: Física
 --// ============================================================================
 
 --[[
-	Retorna a constante de arrasto para fÃ­sica da bola.
+	Retorna a constante de arrasto para física da bola.
 	Usado para desacelerar a bola ao longo do tempo.
 	
 	@return number - Constante de arrasto (0-1)
@@ -102,10 +102,10 @@ end
 --// ============================================================================
 
 --[[
-	Retorna o ping mÃ¡ximo permitido para interaÃ§Ãµes.
-	Jogadores com ping acima deste valor tÃªm interaÃ§Ãµes bloqueadas.
+	Retorna o ping máximo permitido para interações.
+	Jogadores com ping acima deste valor têm interações bloqueadas.
 	
-	@return number - Ping mÃ¡ximo em milissegundos
+	@return number - Ping máximo em milissegundos
 ]]
 function SharedAttributes:MaxPing(): number
 	return PING_MAXIMO

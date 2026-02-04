@@ -1,31 +1,31 @@
 --[[
 	================================================================================
-	MÃ“DULO: StaminaUI
+	MÓDULO: StaminaUI
 	================================================================================
 	
-	DescriÃ§Ã£o:
+	Descrição:
 		Controlador da interface visual de Stamina.
-		Gerencia as barras de progresso e mudanÃ§as de cor baseadas no nÃ­vel de energia.
+		Gerencia as barras de progresso e mudanças de cor baseadas no nível de energia.
 	
-	DependÃªncias:
-		- Nenhuma (apenas serviÃ§os do Roblox)
+	Dependências:
+		- Nenhuma (apenas serviços do Roblox)
 	
 	Autor: Sistema ABH
 	================================================================================
 ]]
 
 --// ============================================================================
---// SETOR: ServiÃ§os
+--// SETOR: Serviços
 --// ============================================================================
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 
 --// ============================================================================
---// SETOR: Constantes e ConfiguraÃ§Ãµes
+--// SETOR: Constantes e Configurações
 --// ============================================================================
 
--- ConfiguraÃ§Ãµes de AnimaÃ§Ã£o
+-- Configurações de Animação
 local TWEEN_INFO_MAIN = TweenInfo.new(0.75, Enum.EasingStyle.Quart)
 local TWEEN_INFO_BAR = TweenInfo.new(0.25, Enum.EasingStyle.Quart)
 
@@ -37,21 +37,21 @@ local COLORS = {
 }
 
 --// ============================================================================
---// SETOR: ReferÃªncias de UI
+--// SETOR: Referências de UI
 --// ============================================================================
 
 local localPlayer = Players.LocalPlayer :: Player
 local playerGui = localPlayer.PlayerGui
 local staminaFrame = playerGui:WaitForChild("Indicator").Main.Stamina.Indicator
 
--- ReferÃªncias diretas Ã s barras (LastProgress e Progress)
+-- Referências diretas à s barras (LastProgress e Progress)
 local staminaLastProgressUI = staminaFrame:FindFirstChild("LastProgress") :: Frame
 local staminaProgressUI = staminaFrame:FindFirstChild("Progress") :: Frame
 
 local StaminaUI = {}
 
 --// ============================================================================
---// SETOR: FunÃ§Ãµes Auxiliares
+--// SETOR: Funções Auxiliares
 --// ============================================================================
 
 --[[
@@ -71,11 +71,11 @@ local function getStaminaColor(percentage)
 end
 
 --// ============================================================================
---// SETOR: FunÃ§Ãµes PÃºblicas
+--// SETOR: Funções Públicas
 --// ============================================================================
 
 --[[
-	Anima a barra de "Last Progress" (barra secundÃ¡ria/fundo).
+	Anima a barra de "Last Progress" (barra secundária/fundo).
 	
 	@param stamina number - Valor atual de stamina (0-100)
 ]]

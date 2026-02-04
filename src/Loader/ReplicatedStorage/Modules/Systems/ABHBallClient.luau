@@ -1,9 +1,9 @@
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 
-local SharedTypes = require("../../Utilities/SharedTypes")
-local ABHAnimations = require("../../Utilities/ABHAnimations")
-local Maid = require("../../Utilities/Maid")
+local SharedTypes = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("SharedTypes"))
+local ABHAnimations = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("ABHAnimations"))
+local Maid = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Maid"))
 
 local BOUNCE_COOLDOWN = 0.25
 local BALLS_FOLDER = workspace:WaitForChild("Core"):WaitForChild("Balls") :: Folder

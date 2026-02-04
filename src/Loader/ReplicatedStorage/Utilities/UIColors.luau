@@ -1,11 +1,11 @@
 --[[
 	================================================================================
-	MÃ“DULO: UIColors
+	MÓDULO: UIColors
 	================================================================================
 	
-	DescriÃ§Ã£o:
+	Descrição:
 		Centraliza todas as constantes de cores utilizadas nas interfaces do jogo.
-		Evita duplicaÃ§Ã£o de definiÃ§Ã£o de cores em mÃºltiplos mÃ³dulos.
+		Evita duplicação de definição de cores em múltiplos módulos.
 	
 	Uso:
 		local UIColors = require(path.to.UIColors)
@@ -16,12 +16,12 @@
 ]]
 
 --// ============================================================================
---// SETOR: DefiniÃ§Ãµes de Cores
+--// SETOR: Definições de Cores
 --// ============================================================================
 
 local UIColors = {}
 
---- Cores padrÃ£o para barras de progresso (Stamina, Poder, etc.)
+--- Cores padrào para barras de progresso (Stamina, Poder, etc.)
 UIColors.Progresso = {
 	CHEIO = Color3.fromRGB(46, 204, 113),      -- Verde moderno
 	MEDIO = Color3.fromRGB(241, 196, 15),      -- Amarelo moderno
@@ -40,21 +40,21 @@ UIColors.Time = {
 	AWAY = Color3.fromRGB(255, 0, 0),          -- Vermelho
 }
 
---- Cores para cartÃµes
+--- Cores para cartões
 UIColors.Cartao = {
 	AMARELO = Color3.fromRGB(255, 255, 0),
 	VERMELHO = Color3.fromRGB(255, 0, 0),
 }
 
 --// ============================================================================
---// SETOR: FunÃ§Ãµes UtilitÃ¡rias
+--// SETOR: Funções Utilitárias
 --// ============================================================================
 
 --[[
-	ObtÃ©m a cor apropriada baseada em uma porcentagem (0 a 1).
+	Obtém a cor apropriada baseada em uma porcentagem (0 a 1).
 	
 	@param porcentagem number - Valor entre 0 e 1
-	@return Color3 - Cor correspondente ao nÃ­vel
+	@return Color3 - Cor correspondente ao nível
 	
 	Exemplo:
 		obterCorPorPorcentagem(0.8) -> Verde (CHEIO)
@@ -72,7 +72,7 @@ function UIColors.obterCorPorPorcentagem(porcentagem: number): Color3
 end
 
 --[[
-	ObtÃ©m a cor de time baseada em se Ã© Home ou Away.
+	Obtém a cor de time baseada em se é Home ou Away.
 	
 	@param ehHome boolean - True para time da casa, false para visitante
 	@return Color3 - Cor do time

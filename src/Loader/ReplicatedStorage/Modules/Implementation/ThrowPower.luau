@@ -1,4 +1,4 @@
-local Utils = require("../../Utilities/Utils")
+local Utils = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Utils"))
 local ThrowHeight = {
 	{
 		limit = 20,
@@ -69,7 +69,7 @@ return function(mouseDirection: vector, mousePosition: vector, playerLookDirecti
 	
 	local dot = math.clamp(vector.dot(mouseDir, front), -1, 1)
 	
-	-- Verifica se a bola estÃ¡ sendo mirada ao gol
+	-- Verifica se a bola está sendo mirada ao gol
 	local raycastParams = RaycastParams.new()
 	raycastParams.FilterDescendantsInstances = {HOME_GLT, AWAY_GLT}
 	raycastParams.FilterType = Enum.RaycastFilterType.Include

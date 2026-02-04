@@ -1,23 +1,23 @@
 --[[
 	================================================================================
-	MÃ“DULO: PenaltySpawnTool
+	MÓDULO: PenaltySpawnTool
 	================================================================================
 	
-	DescriÃ§Ã£o:
-		Ferramenta para marcaÃ§Ã£o de pÃªnaltis.
-		Detecta automaticamente a linha de gol (GLT) mais prÃ³xima para posicionar a marca.
+	Descrição:
+		Ferramenta para marcação de pênaltis.
+		Detecta automaticamente a linha de gol (GLT) mais próxima para posicionar a marca.
 	
 	Funcionalidades:
-		- DetecÃ§Ã£o automÃ¡tica de gol prÃ³xuimo.
-		- Posicionamento de marca visual de pÃªnalti.
-		- AlternÃ¢ncia de time cobrador.
+		- Detecção automática de gol próxuimo.
+		- Posicionamento de marca visual de pênalti.
+		- Alternà¢ncia de time cobrador.
 	
 	Autor: Sistema ABH
 	================================================================================
 ]]
 
 --// ============================================================================
---// SETOR: ServiÃ§os
+--// SETOR: Serviços
 --// ============================================================================
 
 local UserInputService = game:GetService("UserInputService")
@@ -26,12 +26,12 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 
 --// ============================================================================
---// SETOR: DependÃªncias e Assets
+--// SETOR: Dependências e Assets
 --// ============================================================================
 
-local ClientNetwork = require("../../Implementation/ClientNetwork")
-local Janitor = require("../../../Utilities/Janitor")
-local InputSystem = require("../../Implementation/InputSystem")
+local ClientNetwork = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("ClientNetwork"))
+local Janitor = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Janitor"))
+local InputSystem = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("InputSystem"))
 
 local ASSETS_FOLDER = ReplicatedStorage:WaitForChild("Assets")
 local HOME_PENALTY = ASSETS_FOLDER.Penalty.Home :: BasePart
@@ -47,7 +47,7 @@ local localPlayer = Players.LocalPlayer :: Player
 local penaltyPart: BasePart?
 
 --// ============================================================================
---// SETOR: FunÃ§Ãµes Auxiliares
+--// SETOR: Funções Auxiliares
 --// ============================================================================
 
 --[[
@@ -64,10 +64,10 @@ function ToggleColor(part: BasePart?, n: number)
 end
 
 --[[
-	Encontra o objeto GLT (Goal Line Technology - Gol) mais prÃ³ximo de uma posiÃ§Ã£o.
+	Encontra o objeto GLT (Goal Line Technology - Gol) mais próximo de uma posição.
 	
-	@param position Vector3 - PosiÃ§Ã£o de referÃªncia (mouse)
-	@return BasePart - O objeto GLT mais prÃ³ximo
+	@param position Vector3 - Posição de referência (mouse)
+	@return BasePart - O objeto GLT mais próximo
 ]]
 function getClosestGLT(position: Vector3)
 	local closest
@@ -88,7 +88,7 @@ function getClosestGLT(position: Vector3)
 end
 
 --[[
-	Cria ou atualiza a parte visual da marca do pÃªnalti baseada no gol alvo.
+	Cria ou atualiza a parte visual da marca do pênalti baseada no gol alvo.
 ]]
 function createPart(glt)
 	if not glt then return end
@@ -101,7 +101,7 @@ function createPart(glt)
 		end
 	end
 
-	-- Cria nova marca se necessÃ¡rio
+	-- Cria nova marca se necessário
 	if not penaltyPart then
 		if glt.Name == "Home" then
 			penaltyPart = HOME_PENALTY:Clone()
@@ -114,7 +114,7 @@ function createPart(glt)
 end
 
 --// ============================================================================
---// SETOR: InicializaÃ§Ã£o
+--// SETOR: Inicialização
 --// ============================================================================
 
 function SpawnTool:Initialize(tool: Tool)	
@@ -124,13 +124,13 @@ function SpawnTool:Initialize(tool: Tool)
 	local currentTeam = 0
 	local closest
 
-	-- Janitor limpa a instÃ¢ncia da tool se o janitor for limpo
+	-- Janitor limpa a instà¢ncia da tool se o janitor for limpo
 	toolJanitor:LinkToInstance(tool)
 
 	tool.Equipped:Connect(function()
 		InputSystem.Contexts["Penalty Tool"].Enabled = true
 
-		-- Loop de visualizaÃ§Ã£o
+		-- Loop de visualização
 		toolJanitor:Add(RunService.RenderStepped:Connect(function()
 			closest = getClosestGLT(localPlayer:GetMouse().Hit.Position)
 			if closest then
@@ -139,7 +139,7 @@ function SpawnTool:Initialize(tool: Tool)
 			end
 		end))
 
-		-- AÃ§Ã£o: Marcar PÃªnalti
+		-- Ação: Marcar Pênalti
 		toolJanitor:Add(InputSystem.Actions["Penalty Tool"].Spawn.Pressed:Connect(function()
 			if not closest then return end
 
@@ -148,7 +148,7 @@ function SpawnTool:Initialize(tool: Tool)
 			ClientNetwork.RefereeEvent:RefPenalty(isHome, isHomeGLT)
 		end), "Disconnect")
 
-		-- AÃ§Ã£o: Trocar Time
+		-- Ação: Trocar Time
 		toolJanitor:Add(InputSystem.Actions["Penalty Tool"]["Change Team"].Pressed:Connect(function()
 			currentTeam = (currentTeam + 1) % 2
 			ToggleColor(penaltyPart, currentTeam)

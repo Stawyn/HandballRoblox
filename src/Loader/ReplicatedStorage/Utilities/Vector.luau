@@ -1,15 +1,15 @@
 --[[
 	================================================================================
-	MÃ“DULO: Vector
+	MÓDULO: Vector
 	================================================================================
 	
-	DescriÃ§Ã£o:
-		UtilitÃ¡rios para conversÃ£o entre tipos de vetor.
+	Descrição:
+		Utilitários para conversão entre tipos de vetor.
 		Converte entre Vector3 (Roblox) e vector (biblioteca nativa de Luau).
 	
 	Nota:
-		O tipo 'vector' Ã© o tipo nativo de Luau, diferente de Vector3.
-		Use essas funÃ§Ãµes quando precisar trabalhar com ambos os tipos.
+		O tipo 'vector' é o tipo nativo de Luau, diferente de Vector3.
+		Use essas funções quando precisar trabalhar com ambos os tipos.
 	
 	Autor: Sistema ABH
 	================================================================================
@@ -18,7 +18,7 @@
 local Vector = {}
 
 --// ============================================================================
---// SETOR: ConversÃµes de Vetor
+--// SETOR: Conversões de Vetor
 --// ============================================================================
 
 --[[

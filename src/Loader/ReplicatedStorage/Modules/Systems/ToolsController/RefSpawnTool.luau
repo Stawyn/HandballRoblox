@@ -1,20 +1,20 @@
 --[[
 	================================================================================
-	MÃ“DULO: RefSpawnTool
+	MÓDULO: RefSpawnTool
 	================================================================================
 	
-	DescriÃ§Ã£o:
-		Ferramenta de Ãrbitro para marcaÃ§Ã£o de faltas/reinÃ­cios (Set Piece).
+	Descrição:
+		Ferramenta de àrbitro para marcação de faltas/reinícios (Set Piece).
 		Permite posicionar a bola e definir qual time tem a posse.
 	
 	Funcionalidades:
-		- VisualizaÃ§Ã£o fantasama (ghost) de onde a bola serÃ¡ criada.
-		- AlternÃ¢ncia de time (Casa/Visitante) para posse de bola.
-		- RequisiÃ§Ã£o de spawn ao servidor.
+		- Visualização fantasama (ghost) de onde a bola será criada.
+		- Alternà¢ncia de time (Casa/Visitante) para posse de bola.
+		- Requisição de spawn ao servidor.
 	
-	DependÃªncias:
-		- ClientNetwork (ComunicaÃ§Ã£o)
-		- Janitor (Limpeza de memÃ³ria)
+	Dependências:
+		- ClientNetwork (Comunicação)
+		- Janitor (Limpeza de memória)
 		- InputSystem (Entrada)
 	
 	Autor: Sistema ABH
@@ -22,7 +22,7 @@
 ]]
 
 --// ============================================================================
---// SETOR: ServiÃ§os
+--// SETOR: Serviços
 --// ============================================================================
 
 local UserInputService = game:GetService("UserInputService")
@@ -31,12 +31,12 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 
 --// ============================================================================
---// SETOR: DependÃªncias
+--// SETOR: Dependências
 --// ============================================================================
 
-local ClientNetwork = require("../../Implementation/ClientNetwork")
-local Janitor = require("../../../Utilities/Janitor")
-local InputSystem = require("../../Implementation/InputSystem")
+local ClientNetwork = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("ClientNetwork"))
+local Janitor = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Janitor"))
+local InputSystem = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("InputSystem"))
 
 local ASSETS_FOLDER = ReplicatedStorage:WaitForChild("Assets")
 local REFERENCE_BASEPART = ASSETS_FOLDER:WaitForChild("SpawnReference") :: {
@@ -47,14 +47,14 @@ local localPlayer = Players.LocalPlayer :: Player
 local SpawnTool = {}
 
 --// ============================================================================
---// SETOR: FunÃ§Ãµes Auxiliares
+--// SETOR: Funções Auxiliares
 --// ============================================================================
 
 --[[
-	Alterna a cor da parte baseada no Ã­ndice do time.
+	Alterna a cor da parte baseada no índice do time.
 	
 	@param part BasePart - A parte a ser colorida
-	@param n number - Ãndice do time (0 = Casa/Azul, 1 = Visitante/Vermelho)
+	@param n number - àndice do time (0 = Casa/Azul, 1 = Visitante/Vermelho)
 ]]
 function ToggleColor(part: BasePart, n: number)
 	if n == 0 then
@@ -65,7 +65,7 @@ function ToggleColor(part: BasePart, n: number)
 end
 
 --// ============================================================================
---// SETOR: InicializaÃ§Ã£o
+--// SETOR: Inicialização
 --// ============================================================================
 
 function SpawnTool:Initialize(tool: Tool)	
@@ -79,7 +79,7 @@ function SpawnTool:Initialize(tool: Tool)
 	tool.Equipped:Connect(function()
 		InputSystem.Contexts["Set Piece Tool"].Enabled = true
 
-		-- Cria visualizaÃ§Ã£o fantasma (Ghost)
+		-- Cria visualização fantasma (Ghost)
 		local referenceClone = REFERENCE_BASEPART:Clone()
 		toolJanitor:Add(referenceClone, "Destroy")
 		referenceClone.Parent = workspace
@@ -89,22 +89,22 @@ function SpawnTool:Initialize(tool: Tool)
 		-- Aplica cor inicial
 		ToggleColor(referenceClone, currentTeam)
 
-		-- Atualiza posiÃ§Ã£o do ghost a cada frame (seguir mouse)
+		-- Atualiza posição do ghost a cada frame (seguir mouse)
 		toolJanitor:Add(RunService.RenderStepped:Connect(function(deltaTime)
 			local mouseHit = localPlayer:GetMouse().Hit
-			-- MantÃ©m Y fixo baseado no tamanho do objeto
+			-- Mantém Y fixo baseado no tamanho do objeto
 			position = (mouseHit.Position * Vector3.new(1, 0, 1)) + Vector3.new(0, referenceClone.Size.Y/2, 0)
 
 			referenceClone.CFrame = CFrame.new(position)
 		end), "Disconnect")
 
-		-- AÃ§Ã£o: Spawnar Bola
+		-- Ação: Spawnar Bola
 		toolJanitor:Add(InputSystem.Actions["Set Piece Tool"].Spawn.Pressed:Connect(function()
 			local isHome = currentTeam == 0
 			ClientNetwork.RefereeEvent:RefSpawn(isHome, position)
 		end), "Disconnect")
 
-		-- AÃ§Ã£o: Trocar Time
+		-- Ação: Trocar Time
 		toolJanitor:Add(InputSystem.Actions["Set Piece Tool"]["Change Team"].Pressed:Connect(function()
 			currentTeam = (currentTeam + 1) % 2
 			ToggleColor(referenceClone.ForceField, currentTeam)

@@ -1,18 +1,18 @@
 --[[
 	================================================================================
-	MÃ“DULO: TeamUtils (UtilitÃ¡rios de Times)
+	MÓDULO: TeamUtils (Utilitários de Times)
 	================================================================================
 	
-	DescriÃ§Ã£o:
-		FunÃ§Ãµes centralizadas para verificaÃ§Ã£o de times de jogadores.
-		Evita duplicaÃ§Ã£o de padrÃµes como "teamName:find('Home')" em vÃ¡rios arquivos.
+	Descrição:
+		Funções centralizadas para verificação de times de jogadores.
+		Evita duplicação de padrões como "teamName:find('Home')" em vários arquivos.
 	
-	FunÃ§Ãµes:
-		- isHomePlayer: Verifica se jogador Ã© do time Home
-		- isAwayPlayer: Verifica se jogador Ã© do time Away
-		- isGoalkeeper: Verifica se jogador Ã© goleiro
-		- isSubstitute: Verifica se jogador Ã© reserva
-		- isOfficial: Verifica se jogador Ã© Ã¡rbitro
+	Funções:
+		- isHomePlayer: Verifica se jogador é do time Home
+		- isAwayPlayer: Verifica se jogador é do time Away
+		- isGoalkeeper: Verifica se jogador é goleiro
+		- isSubstitute: Verifica se jogador é reserva
+		- isOfficial: Verifica se jogador é árbitro
 		- getPlayerTeamSide: Retorna "Home", "Away" ou nil
 	
 	Autor: Sistema ABH
@@ -20,7 +20,7 @@
 ]]
 
 --// ============================================================================
---// SETOR: DefiniÃ§Ã£o do MÃ³dulo
+--// SETOR: Definição do Módulo
 --// ============================================================================
 
 local TeamUtils = {}
@@ -39,12 +39,12 @@ local TEAM_PATTERNS = {
 }
 
 --// ============================================================================
---// SETOR: FunÃ§Ãµes de VerificaÃ§Ã£o de Time
+--// SETOR: Funções de Verificação de Time
 --// ============================================================================
 
---- Verifica se o jogador Ã© do time Home (titular)
+--- Verifica se o jogador é do time Home (titular)
 -- @param player Player - O jogador a verificar
--- @return boolean - true se Ã© jogador titular do Home
+-- @return boolean - true se é jogador titular do Home
 function TeamUtils.isHomePlayer(player: Player): boolean
 	if not player.Team then
 		return false
@@ -55,9 +55,9 @@ function TeamUtils.isHomePlayer(player: Player): boolean
 		and teamName:find(TEAM_PATTERNS.SUBSTITUTES) == nil
 end
 
---- Verifica se o jogador Ã© do time Away (titular)
+--- Verifica se o jogador é do time Away (titular)
 -- @param player Player - O jogador a verificar
--- @return boolean - true se Ã© jogador titular do Away
+-- @return boolean - true se é jogador titular do Away
 function TeamUtils.isAwayPlayer(player: Player): boolean
 	if not player.Team then
 		return false
@@ -68,9 +68,9 @@ function TeamUtils.isAwayPlayer(player: Player): boolean
 		and teamName:find(TEAM_PATTERNS.SUBSTITUTES) == nil
 end
 
---- Verifica se o jogador Ã© goleiro
+--- Verifica se o jogador é goleiro
 -- @param player Player - O jogador a verificar
--- @return boolean - true se Ã© goleiro
+-- @return boolean - true se é goleiro
 function TeamUtils.isGoalkeeper(player: Player): boolean
 	if not player.Team then
 		return false
@@ -79,9 +79,9 @@ function TeamUtils.isGoalkeeper(player: Player): boolean
 	return player.Team.Name:find(TEAM_PATTERNS.GOALKEEPER) ~= nil
 end
 
---- Verifica se o jogador Ã© reserva (Substitutes)
+--- Verifica se o jogador é reserva (Substitutes)
 -- @param player Player - O jogador a verificar
--- @return boolean - true se Ã© reserva
+-- @return boolean - true se é reserva
 function TeamUtils.isSubstitute(player: Player): boolean
 	if not player.Team then
 		return false
@@ -90,9 +90,9 @@ function TeamUtils.isSubstitute(player: Player): boolean
 	return player.Team.Name:find(TEAM_PATTERNS.SUBSTITUTES) ~= nil
 end
 
---- Verifica se o jogador Ã© Ã¡rbitro (Officials)
+--- Verifica se o jogador é árbitro (Officials)
 -- @param player Player - O jogador a verificar
--- @return boolean - true se Ã© Ã¡rbitro
+-- @return boolean - true se é árbitro
 function TeamUtils.isOfficial(player: Player): boolean
 	if not player.Team then
 		return false
@@ -101,9 +101,9 @@ function TeamUtils.isOfficial(player: Player): boolean
 	return player.Team.Name == TEAM_PATTERNS.OFFICIALS
 end
 
---- Verifica se o jogador estÃ¡ no Lobby
+--- Verifica se o jogador está no Lobby
 -- @param player Player - O jogador a verificar
--- @return boolean - true se estÃ¡ no lobby
+-- @return boolean - true se está no lobby
 function TeamUtils.isInLobby(player: Player): boolean
 	if not player.Team then
 		return false
@@ -114,7 +114,7 @@ end
 
 --- Retorna o lado do time do jogador ("Home", "Away", ou nil)
 -- @param player Player - O jogador a verificar
--- @return string? - "Home", "Away" ou nil se nÃ£o estÃ¡ em nenhum time
+-- @return string? - "Home", "Away" ou nil se não está em nenhum time
 function TeamUtils.getPlayerTeamSide(player: Player): string?
 	if not player.Team then
 		return nil
@@ -136,7 +136,7 @@ function TeamUtils.getPlayerTeamSide(player: Player): string?
 	return nil
 end
 
---- Verifica se o jogador pode interagir com a bola (nÃ£o Ã© lobby/officials/substitutes)
+--- Verifica se o jogador pode interagir com a bola (não é lobby/officials/substitutes)
 -- @param player Player - O jogador a verificar
 -- @return boolean - true se pode interagir
 function TeamUtils.canInteractWithBall(player: Player): boolean
@@ -146,7 +146,7 @@ function TeamUtils.canInteractWithBall(player: Player): boolean
 
 	local teamName = player.Team.Name
 
-	-- NÃ£o pode jogar se estÃ¡ no lobby, Ã© Ã¡rbitro ou reserva
+	-- não pode jogar se está no lobby, é árbitro ou reserva
 	if teamName == TEAM_PATTERNS.LOBBY then
 		return false
 	end
@@ -160,10 +160,10 @@ function TeamUtils.canInteractWithBall(player: Player): boolean
 	return true
 end
 
---- Verifica se dois jogadores sÃ£o do mesmo lado (Home vs Away)
+--- Verifica se dois jogadores são do mesmo lado (Home vs Away)
 -- @param player1 Player - Primeiro jogador
 -- @param player2 Player - Segundo jogador
--- @return boolean - true se sÃ£o do mesmo lado
+-- @return boolean - true se são do mesmo lado
 function TeamUtils.areSameTeamSide(player1: Player, player2: Player): boolean
 	local side1 = TeamUtils.getPlayerTeamSide(player1)
 	local side2 = TeamUtils.getPlayerTeamSide(player2)
@@ -175,10 +175,10 @@ function TeamUtils.areSameTeamSide(player1: Player, player2: Player): boolean
 	return side1 == side2
 end
 
---- Verifica se dois jogadores sÃ£o adversÃ¡rios
+--- Verifica se dois jogadores são adversários
 -- @param player1 Player - Primeiro jogador
 -- @param player2 Player - Segundo jogador
--- @return boolean - true se sÃ£o adversÃ¡rios
+-- @return boolean - true se são adversários
 function TeamUtils.areOpponents(player1: Player, player2: Player): boolean
 	local side1 = TeamUtils.getPlayerTeamSide(player1)
 	local side2 = TeamUtils.getPlayerTeamSide(player2)
@@ -191,7 +191,7 @@ function TeamUtils.areOpponents(player1: Player, player2: Player): boolean
 end
 
 --// ============================================================================
---// SETOR: Retorno do MÃ³dulo
+--// SETOR: Retorno do Módulo
 --// ============================================================================
 
 return TeamUtils

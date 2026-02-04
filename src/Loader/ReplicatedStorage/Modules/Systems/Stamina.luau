@@ -1,13 +1,13 @@
 --[[
 	================================================================================
-	MÃ“DULO: Stamina
+	MÓDULO: Stamina
 	================================================================================
 	
-	DescriÃ§Ã£o:
+	Descrição:
 		Sistema de stamina (energia) do jogador.
-		Gerencia o consumo de energia ao correr e pular, regeneraÃ§Ã£o e UI.
+		Gerencia o consumo de energia ao correr e pular, regeneração e UI.
 	
-	DependÃªncias:
+	Dependências:
 		- StaminaUI (Visual)
 		- SharedAttributes (Valores de velocidade)
 		- InputSystem (Entrada de comandos)
@@ -17,7 +17,7 @@
 ]]
 
 --// ============================================================================
---// SETOR: ServiÃ§os
+--// SETOR: Serviços
 --// ============================================================================
 
 local Players = game:GetService("Players")
@@ -26,25 +26,25 @@ local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 --// ============================================================================
---// SETOR: DependÃªncias
+--// SETOR: Dependências
 --// ============================================================================
 
 -- Assumindo caminhos relativos originais para compatibilidade
-local StaminaUI = require("../Implementation/StaminaUI")
-local SharedAttributes = require("../Implementation/SharedAttributes")
-local InputSystem = require("../Implementation/InputSystem")
+local StaminaUI = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("StaminaUI"))
+local SharedAttributes = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("SharedAttributes"))
+local InputSystem = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("InputSystem"))
 
 local Stamina = {}
 
 --// ============================================================================
---// SETOR: ConfiguraÃ§Ãµes e Constantes
+--// SETOR: Configurações e Constantes
 --// ============================================================================
 
-local STAMINA_DURATION = 7 			-- DuraÃ§Ã£o total em segundos se correr sem parar
+local STAMINA_DURATION = 7 			-- Duração total em segundos se correr sem parar
 local DRAIN_RATE = 100 / STAMINA_DURATION
-local INCREASE_RATE = 20 			-- Taxa de regeneraÃ§Ã£o por segundo
+local INCREASE_RATE = 20 			-- Taxa de regeneração por segundo
 local JUMP_DECREASE_RATE = 24 		-- Custo de stamina por pulo
-local RUN_REFRESH = 15 				-- Stamina necessÃ¡ria para voltar a correr apÃ³s exaustÃ£o
+local RUN_REFRESH = 15 				-- Stamina necessária para voltar a correr após exaustào
 local REGEN_DELAY = 0.25 			-- Tempo de espera antes de regenerar
 
 --// ============================================================================
@@ -67,10 +67,10 @@ local mobileUI = localPlayer.PlayerGui:WaitForChild("Mobile")
 local sprintFrame = mobileUI:WaitForChild("Sprint") :: Frame 
 local sprintButton = sprintFrame:WaitForChild("Interact") :: TextButton
 
--- Inicializa o contexto de input fÃ­sico
+-- Inicializa o contexto de input físico
 InputSystem.Contexts.Physical.Enabled = true 
 
--- Configura botÃ£o da UI Mobile
+-- Configura botào da UI Mobile
 sprintButton.MouseButton1Click:Connect(function()
 	sprintHeld = not sprintHeld
 	Stamina:Sprint(sprintHeld)
@@ -87,14 +87,14 @@ sprintButton.MouseButton1Click:Connect(function()
 end)
 
 --// ============================================================================
---// SETOR: FunÃ§Ãµes Principais
+--// SETOR: Funções Principais
 --// ============================================================================
 
 --[[
-	Atualiza o valor da stamina (gasto ou regeneraÃ§Ã£o) e a UI.
+	Atualiza o valor da stamina (gasto ou regeneração) e a UI.
 	
-	@param state boolean - True se estÃ¡ gastando, False se estÃ¡ regenerando
-	@param deltaTime number - VariaÃ§Ã£o de tempo do frame
+	@param state boolean - True se está gastando, False se está regenerando
+	@param deltaTime number - Variação de tempo do frame
 ]]
 function Stamina:ChargeStamina(state: boolean, deltaTime: number)	
 	StaminaUI:TweenLastProgress(stamina)
@@ -131,7 +131,7 @@ function Stamina:Sprint(state: boolean)
 	local character = localPlayer.Character
 	if not character then return end
 
-	-- Goleiros nÃ£o usam este sistema de corrida
+	-- Goleiros não usam este sistema de corrida
 	if character:FindFirstChild("KeeperTool") then
 		sprinting = false
 		return
@@ -151,8 +151,8 @@ function Stamina:Sprint(state: boolean)
 end
 
 --[[
-	LÃ³gica de pulo controlada pela stamina.
-	SÃ³ permite pular se tiver stamina suficiente e nÃ£o estiver segurando a bola.
+	Lógica de pulo controlada pela stamina.
+	Só permite pular se tiver stamina suficiente e não estiver segurando a bola.
 ]]
 function Stamina:Jump()
 	local character = localPlayer.Character
@@ -161,7 +161,7 @@ function Stamina:Jump()
 	local humanoid = character:FindFirstChild("Humanoid") :: Humanoid?
 	if not humanoid then return end
 
-	-- NÃ£o pode pular enquanto estÃ¡ no ar
+	-- não pode pular enquanto está no ar
 	if humanoid.FloorMaterial == Enum.Material.Air then 
 		return
 	end
@@ -192,10 +192,10 @@ function Stamina:Jump()
 end
 
 --// ============================================================================
---// SETOR: ConexÃµes de Input
+--// SETOR: Conexões de Input
 --// ============================================================================
 
--- AÃ§Ãµes de Sprint do InputSystem
+-- Ações de Sprint do InputSystem
 InputSystem.Actions.Physical.Sprint.Pressed:Connect(function()
 	sprintHeld = true
 	Stamina:Sprint(sprintHeld)
@@ -206,7 +206,7 @@ InputSystem.Actions.Physical.Sprint.Released:Connect(function()
 	Stamina:Sprint(sprintHeld)
 end)
 
--- RequisiÃ§Ãµes de Pulo
+-- Requisições de Pulo
 UserInputService.JumpRequest:Connect(function()
 	if jumpCooldown then 
 		return
@@ -214,7 +214,7 @@ UserInputService.JumpRequest:Connect(function()
 	jumpCooldown = true
 
 	Stamina:Jump()
-	task.wait(0.25) -- Cooldown tÃ©cnico
+	task.wait(0.25) -- Cooldown técnico
 
 	jumpCooldown = false
 end)
@@ -245,7 +245,7 @@ RunService.Heartbeat:Connect(function(deltaTime)
 		if stamina > 0 then
 			Stamina:ChargeStamina(true, deltaTime) 
 		else
-			Stamina:Sprint(false) -- ExaustÃ£o
+			Stamina:Sprint(false) -- Exaustào
 			exhausted = true
 		end
 	else 
@@ -254,7 +254,7 @@ RunService.Heartbeat:Connect(function(deltaTime)
 			if stamina < 100 then
 				Stamina:ChargeStamina(false, deltaTime)
 
-				-- Sai do estado de exaustÃ£o se recuperar o mÃ­nimo necessÃ¡rio
+				-- Sai do estado de exaustào se recuperar o mínimo necessário
 				if stamina > RUN_REFRESH then
 					exhausted = false
 

@@ -14,7 +14,7 @@ if CONFIG then
 	LEGACY = CONFIG:GetAttribute("Legacy")
 	print("[KOHLS-DEBUG] Config encontrado. Legacy: " .. tostring(LEGACY))
 else
-	warn("[KOHLS-DEBUG] Config NÃO encontrado!")
+	warn("[KOHLS-DEBUG] Config não encontrado!")
 end
 
 if (LEGACY and not _G.KAU) or not shared._K_LOADER_LOADED then
@@ -47,7 +47,7 @@ if (LEGACY and not _G.KAU) or not shared._K_LOADER_LOADED then
 	print("[KOHLS-DEBUG] Require executado. Sucesso: " .. tostring(ok))
 
 	if not ok then
-		warn("[KOHLS-DEBUG] Falha no Require! Razão: " .. tostring(result))
+		warn("[KOHLS-DEBUG] Falha no Require! Razào: " .. tostring(result))
 		if AUTO_UPDATE then
 			local function loadModuleAsset(assetId: number)
 				local asset = game:GetService("InsertService"):LoadAsset(assetId)

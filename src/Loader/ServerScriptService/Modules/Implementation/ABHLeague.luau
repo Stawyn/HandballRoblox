@@ -21,7 +21,7 @@
 		- AUXILIARES: Funções de suporte
 		- PARTIDA: BeginLeague, PauseMatch, ResumeMatch, Reset
 		- COBRANÇAS: SpawnFreeThrow, SpawnPenalty, ThrowOff
-		- DETECÇÃO: handleOut, detectSideOut, detectGoalsOut
+		- DETECção: handleOut, detectSideOut, detectGoalsOut
 	
 	Autor: Sistema ABH
 	Refatorado: Documentação em PT-BR
@@ -89,12 +89,12 @@ local ABHLeague = {
 local GameStatistics = require("../Systems/GameStatistics") -- Raposa: Sistema de estatísticas
 local ABHBall = require("../Systems/ABHBAll")
 local CardSystem = require(ReplicatedStorage.Modules.Systems.CardSystem)
-local Janitor = require("../../../ReplicatedStorage/Utilities/Janitor")
-local SharedTypes = require("../../../ReplicatedStorage/Utilities/SharedTypes")
-local Vector = require("../../../ReplicatedStorage/Utilities/Vector")
-local Utils = require("../../../ReplicatedStorage/Utilities/Utils")
+local Janitor = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Janitor"))
+local SharedTypes = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("SharedTypes"))
+local Vector = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Vector"))
+local Utils = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Utils"))
 local ServerEvents = require("./ServerEvents")
-local Maid = require("../../../ReplicatedStorage/Utilities/Maid")
+local Maid = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Maid"))
 
 -- Raposa: Registrar ultimo jogador que jogou a bola
 ServerEvents.League:Connect(function(action, player)
@@ -111,11 +111,11 @@ local OUT_FOLDER = workspace:WaitForChild("Core"):WaitForChild("Out") :: Folder
 local REAL_FIELD = workspace:WaitForChild("Core"):WaitForChild("Field"):WaitForChild("RealField")
 local ANTI_INVADE = ReplicatedStorage:WaitForChild("Anti-Invade")
 
--- CONFIGURAÃƒÆ’Ã¢â‚¬Â¡ÃƒÆ’Ã¢â‚¬Â¢ES DE TEMPO PARA TESTES
+-- CONFIGURAàƒÆ’à¢â‚¬Â¡àƒÆ’à¢â‚¬Â¢ES DE TEMPO PARA TESTES
 local TEST_MODE = false -- Mude para true se quiser usar os tempos de teste abaixo
 local HALF_TIME_COUNTDOWN = if TEST_MODE then 15 else 30
 local FULL_TIME_WAIT = if TEST_MODE then 15 else 120
--- FIM CONFIGURAÃƒÆ’Ã¢â‚¬Â¡ÃƒÆ’Ã¢â‚¬Â¢ES
+-- FIM CONFIGURAàƒÆ’à¢â‚¬Â¡àƒÆ’à¢â‚¬Â¢ES
 
 local function RunAdminCountdown(duration: number)
 	local _K = shared._K_INTERFACE
@@ -168,7 +168,7 @@ local function LockPlayerToForceField(player: Player, forceField: BasePart)
 			end
 		end)
 
-		-- Limpa tudo quando o forcefield sumir (bola lanÃ§ada ou tempo acabou)
+		-- Limpa tudo quando o forcefield sumir (bola lançada ou tempo acabou)
 		lockJanitor:LinkToInstance(forceField)
 	end)
 end
@@ -232,10 +232,10 @@ function ABHLeague:IssueBallTimeViolation(player: Player)
 	local count = ballTimeViolations[player.UserId]
 
 	if count == 2 then
-		-- LEAGUE_EVENT:FireAllClients("BALL_TIME_VIOLATION", player.Name, "CartÃƒÆ’Ã‚Â£o Amarelo!")
+		-- LEAGUE_EVENT:FireAllClients("BALL_TIME_VIOLATION", player.Name, "CartàƒÆ’à‚Â£o Amarelo!")
 		CardSystem:GiveYellow(player)
 	elseif count >= 4 then
-		-- LEAGUE_EVENT:FireAllClients("BALL_TIME_VIOLATION", player.Name, "CartÃƒÆ’Ã‚Â£o Vermelho!")
+		-- LEAGUE_EVENT:FireAllClients("BALL_TIME_VIOLATION", player.Name, "CartàƒÆ’à‚Â£o Vermelho!")
 
 		-- Dropar a bola se estiver segurando
 		if player.Character then
@@ -247,9 +247,9 @@ function ABHLeague:IssueBallTimeViolation(player: Player)
 				end)
 			end
 
-			-- Teletransportar para o spawn apÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³s a troca de time
+			-- Teletransportar para o spawn apàƒÆ’à†'àƒâ€šà‚Â³s a troca de time
 			task.spawn(function()
-				task.wait(0.5) -- Espera o motor do Roblox processar a troca de time se necessÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡rio
+				task.wait(0.5) -- Espera o motor do Roblox processar a troca de time se necessàƒÆ’à†'àƒâ€šà‚Â¡rio
 				pcall(function()
 					local crowdSpawn = workspace:FindFirstChild("CrowdSpawn")
 					if crowdSpawn and crowdSpawn:FindFirstChild("SpawnLocation") then
@@ -326,7 +326,7 @@ function ABHLeague:SetMatchState(state: boolean)
 		task.spawn(function()
 			while ABHLeague.BeingPlayed do
 				task.wait(5)
-				-- Raposa: NÃƒÂ£o respawnar se as bolas foram limpas manualmente recentemente (cooldown de 10s)
+				-- Raposa: NàƒÂ£o respawnar se as bolas foram limpas manualmente recentemente (cooldown de 10s)
 				if ABHLeague.StopWatchdogUntil and tick() < ABHLeague.StopWatchdogUntil then
 					continue
 				end
@@ -350,7 +350,7 @@ function ABHLeague:SetMatchState(state: boolean)
 			end
 		end)
 
-		-- Raposa: Remover SpawnTool e KeeperTool de quem estiver no Lobby ao comeÃƒÂ§ar o jogo
+		-- Raposa: Remover SpawnTool e KeeperTool de quem estiver no Lobby ao comeàƒÂ§ar o jogo
 		for _, player in ipairs(Players:GetPlayers()) do
 			if player.Team and player.Team.Name == "Lobby" then
 				for _, toolName in {"SpawnTool", "KeeperTool"} do
@@ -560,14 +560,14 @@ function ABHLeague:ThrowOff(spawner: Player?)
 			end
 		end
 
-		-- Raposa: RestriÃƒÂ§ÃƒÂµes de entrada/saÃƒÂ­da
-		-- Se for o time dono da bola e tentou sair (ou entrou e nÃƒÂ£o ÃƒÂ© o taker), levamos pro meio do forcefield
-		-- Se for o time adversÃƒÂ¡rio, expulsamos
+		-- Raposa: RestriàƒÂ§àƒÂµes de entrada/saàƒÂ­da
+		-- Se for o time dono da bola e tentou sair (ou entrou e nàƒÂ£o àƒÂ© o taker), levamos pro meio do forcefield
+		-- Se for o time adversàƒÂ¡rio, expulsamos
 		if isAllowedTeam then
-			-- Se jÃƒÂ¡ foi pego e nÃƒÂ£o ÃƒÂ© o taker, ou se estÃƒÂ¡ tentando sair, volta pro centro
+			-- Se jàƒÂ¡ foi pego e nàƒÂ£o àƒÂ© o taker, ou se estàƒÂ¡ tentando sair, volta pro centro
 			humanoidRootPart.CFrame = CFrame.new(ballInstance.Position + Vector3.new(0, 3, 0))
 		else
-			-- Time adversÃƒÂ¡rio: Expulsa para a sua metade
+			-- Time adversàƒÂ¡rio: Expulsa para a sua metade
 			local presumedOppositePosition = if isHome then AWAY_POS else HOME_POS
 			humanoidRootPart.CFrame = CFrame.new(presumedOppositePosition)
 		end
@@ -962,7 +962,7 @@ function ABHLeague:SpawnPenalty(isHome: boolean, isHomeGLT: boolean)
 	end
 
 	if currentTimer <= 0 and forceField then
-		-- Raposa: Dar violaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o para o taker se o tempo acabar no pÃƒÆ’Ã‚Âªnalti
+		-- Raposa: Dar violaàƒÆ’à‚Â§àƒÆ’à‚Â£o para o taker se o tempo acabar no pàƒÆ’à‚Âªnalti
 		local takerUserId = forceField:GetAttribute("TakerUserId")
 		if takerUserId and takerUserId > 0 then
 			local player = Players:GetPlayerByUserId(takerUserId)
@@ -1319,7 +1319,7 @@ ServerEvents.League:Connect(function(action, ...)
 		ABHLeague:DoCleaning()
 
 		if ABHLeague.CurrentHalf == 1 then
-			-- FIM DO 1Ãƒâ€šÃ‚Âº TEMPO
+			-- FIM DO 1àƒâ€šà‚Âº TEMPO
 			task.spawn(function()
 				-- Countdown visual do Admin
 				RunAdminCountdown(HALF_TIME_COUNTDOWN)
@@ -1329,11 +1329,11 @@ ServerEvents.League:Connect(function(action, ...)
 					DATA_FOLDER.Timer.Value = i
 					task.wait(1)
 				end
-				-- ComeÃƒÆ’Ã‚Â§a o 2Ãƒâ€šÃ‚Âº tempo automaticamente
+				-- ComeàƒÆ’à‚Â§a o 2àƒâ€šà‚Âº tempo automaticamente
 				ABHLeague:BeginLeague()
 			end)
 		elseif ABHLeague.CurrentHalf == 2 then
-			-- FIM DO 2Ãƒâ€šÃ‚Âº TEMPO
+			-- FIM DO 2àƒâ€šà‚Âº TEMPO
 			task.spawn(function()
 				-- Raposa: Limpar bolas imediatamente ao fim do jogo
 				ABHLeague:DoCleaning()
@@ -1342,7 +1342,7 @@ ServerEvents.League:Connect(function(action, ...)
 				-- Countdown visual do Admin para o reset final
 				RunAdminCountdown(FULL_TIME_WAIT)
 
-				-- Espera o tempo configurado apÃƒÆ’Ã‚Â³s o fim do jogo
+				-- Espera o tempo configurado apàƒÆ’à‚Â³s o fim do jogo
 				task.wait(FULL_TIME_WAIT)
 
 				-- Reseta todo mundo pro lobby e respawna (;re all)
@@ -1353,7 +1353,7 @@ ServerEvents.League:Connect(function(action, ...)
 					player:LoadCharacter()
 				end
 
-				-- Reseta placar, bola e estatÃƒÆ’Ã‚Â­sticas
+				-- Reseta placar, bola e estatàƒÆ’à‚Â­sticas
 				ABHLeague:Reset()
 			end)
 		end
@@ -1415,7 +1415,7 @@ Players.PlayerAdded:Connect(function(player)
 				end
 			end
 
-			-- Raposa: ForÃƒÂ§ar pausa se a partida estiver ativa
+			-- Raposa: ForàƒÂ§ar pausa se a partida estiver ativa
 			if globalTeleportData.Match then
 				task.delay(1, function()
 					ABHLeague:PauseMatch()
@@ -1433,7 +1433,7 @@ Players.PlayerAdded:Connect(function(player)
 		end
 	end
 
-	-- Raposa: Restaurar posiÃƒÂ§ÃƒÂ£o do jogador (apenas uma vez no rejoin)
+	-- Raposa: Restaurar posiàƒÂ§àƒÂ£o do jogador (apenas uma vez no rejoin)
 	if globalTeleportData and globalTeleportData.PlayerPositions then
 		local savedPos = globalTeleportData.PlayerPositions[tostring(player.UserId)]
 		if savedPos then

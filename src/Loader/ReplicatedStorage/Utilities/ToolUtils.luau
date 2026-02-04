@@ -1,14 +1,14 @@
 --[[
 	================================================================================
-	MÃ“DULO: ToolUtils (UtilitÃ¡rios de Ferramentas)
+	MÓDULO: ToolUtils (Utilitários de Ferramentas)
 	================================================================================
 	
-	DescriÃ§Ã£o:
-		FunÃ§Ãµes centralizadas para gerenciamento de ferramentas (Tools).
-		Evita duplicaÃ§Ã£o de cÃ³digo entre diferentes ferramentas do projeto.
+	Descrição:
+		Funções centralizadas para gerenciamento de ferramentas (Tools).
+		Evita duplicação de código entre diferentes ferramentas do projeto.
 	
-	FunÃ§Ãµes:
-		- isToolEquipped: Verifica se uma ferramenta estÃ¡ equipada
+	Funções:
+		- isToolEquipped: Verifica se uma ferramenta está equipada
 		- getEquippedTool: Retorna a ferramenta equipada ou nil
 		- hasToolInBackpack: Verifica se tem ferramenta no Backpack
 	
@@ -17,25 +17,25 @@
 ]]
 
 --// ============================================================================
---// SETOR: ServiÃ§os do Roblox
+--// SETOR: Serviços do Roblox
 --// ============================================================================
 
 local Players = game:GetService("Players")
 
 --// ============================================================================
---// SETOR: DefiniÃ§Ã£o do MÃ³dulo
+--// SETOR: Definição do Módulo
 --// ============================================================================
 
 local ToolUtils = {}
 
 --// ============================================================================
---// SETOR: FunÃ§Ãµes de VerificaÃ§Ã£o
+--// SETOR: Funções de Verificação
 --// ============================================================================
 
---- Verifica se uma ferramenta especÃ­fica estÃ¡ equipada pelo jogador
+--- Verifica se uma ferramenta específica está equipada pelo jogador
 -- @param player Player - O jogador a verificar
 -- @param toolName string - Nome da ferramenta
--- @return boolean - true se a ferramenta estÃ¡ equipada
+-- @return boolean - true se a ferramenta está equipada
 function ToolUtils.isToolEquipped(player: Player, toolName: string): boolean
 	local backpack = player:FindFirstChild("Backpack")
 	local character = player.Character
@@ -44,12 +44,12 @@ function ToolUtils.isToolEquipped(player: Player, toolName: string): boolean
 		return false
 	end
 
-	-- Verifica no Backpack (nÃ£o equipada = estÃ¡ lÃ¡)
+	-- Verifica no Backpack (não equipada = está lá)
 	if backpack and backpack:FindFirstChild(toolName) then
 		return true
 	end
 
-	-- Verifica no Character (equipada = estÃ¡ no Character)
+	-- Verifica no Character (equipada = está no Character)
 	if character:FindFirstChild(toolName) then
 		return true
 	end
@@ -57,7 +57,7 @@ function ToolUtils.isToolEquipped(player: Player, toolName: string): boolean
 	return false
 end
 
---- Verifica se o jogador local tem uma ferramenta especÃ­fica
+--- Verifica se o jogador local tem uma ferramenta específica
 -- Para uso em scripts cliente
 -- @param toolName string - Nome da ferramenta
 -- @return boolean - true se a ferramenta existe (equipada ou no backpack)
@@ -70,7 +70,7 @@ function ToolUtils.localPlayerHasTool(toolName: string): boolean
 	return ToolUtils.isToolEquipped(localPlayer, toolName)
 end
 
---- Retorna a instÃ¢ncia da ferramenta se estiver equipada no Character
+--- Retorna a instà¢ncia da ferramenta se estiver equipada no Character
 -- @param player Player - O jogador
 -- @param toolName string - Nome da ferramenta
 -- @return Tool? - A ferramenta ou nil
@@ -88,10 +88,10 @@ function ToolUtils.getEquippedTool(player: Player, toolName: string): Tool?
 	return nil
 end
 
---- Verifica se a ferramenta estÃ¡ no Backpack (nÃ£o equipada)
+--- Verifica se a ferramenta está no Backpack (não equipada)
 -- @param player Player - O jogador
 -- @param toolName string - Nome da ferramenta
--- @return boolean - true se estÃ¡ no backpack
+-- @return boolean - true se está no backpack
 function ToolUtils.hasToolInBackpack(player: Player, toolName: string): boolean
 	local backpack = player:FindFirstChild("Backpack")
 	if not backpack then
@@ -101,10 +101,10 @@ function ToolUtils.hasToolInBackpack(player: Player, toolName: string): boolean
 	return backpack:FindFirstChild(toolName) ~= nil
 end
 
---- Verifica se a ferramenta estÃ¡ atualmente sendo segurada (equipada no Character)
+--- Verifica se a ferramenta está atualmente sendo segurada (equipada no Character)
 -- @param player Player - O jogador
 -- @param toolName string - Nome da ferramenta
--- @return boolean - true se estÃ¡ no character (equipada)
+-- @return boolean - true se está no character (equipada)
 function ToolUtils.isToolHeld(player: Player, toolName: string): boolean
 	local character = player.Character
 	if not character then
@@ -115,7 +115,7 @@ function ToolUtils.isToolHeld(player: Player, toolName: string): boolean
 end
 
 --// ============================================================================
---// SETOR: Retorno do MÃ³dulo
+--// SETOR: Retorno do Módulo
 --// ============================================================================
 
 return ToolUtils

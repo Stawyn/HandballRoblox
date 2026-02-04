@@ -38,9 +38,9 @@ local Workspace = game:GetService("Workspace")
 --// SETOR: Dependências
 --// ============================================================================
 
-local Maid = require("../../../ReplicatedStorage/Utilities/Maid")
-local SharedTypes = require("../../../ReplicatedStorage/Utilities/SharedTypes")
-local Vector = require("../../../ReplicatedStorage/Utilities/Vector")
+local Maid = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Maid"))
+local SharedTypes = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("SharedTypes"))
+local Vector = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Vector"))
 local ABHBallModule = require("./ABHBAll")
 local GameStatistics = require("./GameStatistics") -- Módulo de Estatísticas
 local ABHLeague = require("../Implementation/ABHLeague")
@@ -214,7 +214,7 @@ function handleGLT(GLT: BasePart)
 					if ABHBall:FindFirstChild("Timer") then ABHBall.Timer:Destroy() end
 					if ABHBall:FindFirstChild("SpecialMesh") then ABHBall.SpecialMesh:Destroy() end
 
-					-- Restaura visual padrão
+					-- Restaura visual padrào
 					ABHBall.TextureID = ""
 					ABHBall.Color = BrickColor.Green().Color
 					ABHBall.Material = Enum.Material.Neon
