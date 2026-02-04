@@ -142,8 +142,8 @@ local function LockPlayerToForceField(player: Player, forceField: BasePart)
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if not hrp or not humanoid or humanoid.Health <= 0 then return end
 
-	-- Raposa: Anular velocidade instantaneamente ao entrar no ForceField
-	hrp.AssemblyLinearVelocity = Vector3.zero
+	-- Raposa: Anular velocidade horizontal, manter Y para cair
+	hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
 	hrp.AssemblyAngularVelocity = Vector3.zero
 
 	task.spawn(function()
@@ -153,18 +153,30 @@ local function LockPlayerToForceField(player: Player, forceField: BasePart)
 
 		local lockJanitor = Janitor.new()
 
-		-- Reseta velocidade imediata do HRP
-		hrp.AssemblyLinearVelocity = Vector3.zero
-		hrp.AssemblyAngularVelocity = Vector3.zero
+		-- Salvar posicao X e Z para travar
+		local lockX = hrp.Position.X
+		local lockZ = hrp.Position.Z
 
-		-- Trava movimento com LinearVelocity
-		local lv = Instance.new("LinearVelocity")
-		lv.Name = "ForceFieldLock"
-		lv.Attachment0 = hrp:FindFirstChild("RootAttachment") or Instance.new("Attachment", hrp)
-		lv.MaxForce = math.huge
-		lv.VectorVelocity = Vector3.zero
-		lv.Parent = hrp
-		lockJanitor:Add(lv)
+		-- Usar AlignPosition para travar apenas X e Z
+		local attachment = hrp:FindFirstChild("RootAttachment") or Instance.new("Attachment", hrp)
+		
+		local alignPos = Instance.new("AlignPosition")
+		alignPos.Name = "ForceFieldLockXZ"
+		alignPos.Attachment0 = attachment
+		alignPos.Mode = Enum.PositionAlignmentMode.OneAttachment
+		alignPos.MaxForce = math.huge
+		alignPos.MaxVelocity = math.huge
+		alignPos.Responsiveness = 200
+		alignPos.Parent = hrp
+		lockJanitor:Add(alignPos)
+
+		-- Atualizar posicao alvo continuamente (manter X e Z fixos, Y livre)
+		local heartbeatConn = RunService.Heartbeat:Connect(function()
+			if hrp and hrp.Parent and alignPos and alignPos.Parent then
+				alignPos.Position = Vector3.new(lockX, hrp.Position.Y, lockZ)
+			end
+		end)
+		lockJanitor:Add(heartbeatConn, "Disconnect")
 
 		-- Desabilita pulo
 		local oldJumpPower = humanoid.JumpPower
@@ -173,11 +185,11 @@ local function LockPlayerToForceField(player: Player, forceField: BasePart)
 		humanoid.JumpHeight = 0
 
 		lockJanitor:Add(function()
-			-- Bug #2: Cleanup explícito do LinearVelocity
-			if lv and lv.Parent then
-				lv:Destroy()
+			-- Cleanup
+			if alignPos and alignPos.Parent then
+				alignPos:Destroy()
 			end
-			-- Restaura valores apenas se o humanóide ainda existir e estiver vivo
+			-- Restaura valores apenas se o humanoide ainda existir e estiver vivo
 			if humanoid and humanoid.Parent and humanoid.Health > 0 then
 				humanoid.JumpPower = oldJumpPower
 				humanoid.JumpHeight = oldJumpHeight
