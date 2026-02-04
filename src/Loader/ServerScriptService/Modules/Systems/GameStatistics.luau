@@ -445,7 +445,7 @@ function Statistics.StartMatch()
 	halfEndSent[2] = false
 	MatchLog = {}
 	if DATA_FOLDER and DATA_FOLDER:FindFirstChild("MatchPaused") then DATA_FOLDER.MatchPaused.Value = false end
-	pcall(function() sendToDiscord("?? PARTIDA INICIADA - 1º TEMPO", nil, false, true) end)
+	pcall(function() sendToDiscord("[MATCH] PARTIDA INICIADA - 1o TEMPO", nil, false, true) end)
 end
 
 function Statistics.StartHalf(half)
@@ -455,8 +455,8 @@ function Statistics.StartHalf(half)
 	lastPeriodicMinute = nil
 	halfEndSent[half] = false
 	if not StatsData[half] then StatsData[half] = {} end
-	local halfLabel = (half == 1) and "1º TEMPO" or "2º TEMPO"
-	pcall(function() sendToDiscord("?? INÍCIO DO " .. halfLabel, nil, false, true) end)
+	local halfLabel = (half == 1) and "1o TEMPO" or "2o TEMPO"
+	pcall(function() sendToDiscord("[INICIO] " .. halfLabel, nil, false, true) end)
 end
 
 function Statistics.PauseMatch()
@@ -464,7 +464,7 @@ function Statistics.PauseMatch()
 	IsMatchActive = false
 	if DATA_FOLDER and DATA_FOLDER:FindFirstChild("MatchPaused") then DATA_FOLDER.MatchPaused.Value = true end
 	Statistics.BroadcastUpdate(true) -- Force update
-	pcall(function() sendToDiscord("?? PARTIDA PAUSADA", nil, false, true) end)
+	pcall(function() sendToDiscord("[PAUSE] PARTIDA PAUSADA", nil, false, true) end)
 end
 
 function Statistics.ResumeMatch()
@@ -472,11 +472,11 @@ function Statistics.ResumeMatch()
 	IsMatchActive = true
 	if DATA_FOLDER and DATA_FOLDER:FindFirstChild("MatchPaused") then DATA_FOLDER.MatchPaused.Value = false end
 	Statistics.BroadcastUpdate(true)
-	pcall(function() sendToDiscord("?? PARTIDA RETOMADA", nil, false, true) end)
+	pcall(function() sendToDiscord("[PLAY] PARTIDA RETOMADA", nil, false, true) end)
 end
 
 function Statistics.RecordTeamGoal(isHome, scorer, assistant)
-	local title = (isHome and "? GOL - HOME") or "? GOL - AWAY"
+	local title = (isHome and "[GOL] HOME") or "[GOL] AWAY"
 	local logText = (isHome and "GOL HOME") or "GOL AWAY"
 	if scorer then
 		logText ..= " - " .. scorer.Name
@@ -489,7 +489,7 @@ end
 
 function Statistics.NotifyTeamNameChange(name, isHome)
 	local side = isHome and "Home" or "Away"
-	pcall(function() sendToDiscord("?? NOME DE TIME ALTERADO - " .. side .. ": " .. tostring(name), nil, false, true) end)
+	pcall(function() sendToDiscord("[NOME] ALTERADO - " .. side .. ": " .. tostring(name), nil, false, true) end)
 end
 
 function Statistics.FinishMatch()
@@ -510,7 +510,7 @@ function Statistics.FinishMatch()
 	end
 
 	local combined = Statistics.GetCombinedStats()
-	sendToDiscord("?? ESTATÍSTICAS FINAIS (TOTAL)", combined, true)
+	sendToDiscord("[FINAL] ESTATISTICAS FINAIS (TOTAL)", combined, true)
 	Statistics.SaveMatch()
 	
 	-- Raposa: Recompensa de Moedas (Rating * 10)
@@ -602,8 +602,8 @@ end
 
 function Statistics.SendHalfEnd(half)
 	if not half or not StatsData[half] then return end
-	local halfLabel = (half == 1) and "1º TEMPO" or "2º TEMPO"
-	pcall(function() sendToDiscord("? FIM DO " .. halfLabel, StatsData[half], false) end)
+	local halfLabel = (half == 1) and "1o TEMPO" or "2o TEMPO"
+	pcall(function() sendToDiscord("[FIM] " .. halfLabel, StatsData[half], false) end)
 end
 
 task.spawn(function()
@@ -616,12 +616,12 @@ task.spawn(function()
 		if IsMatchActive and TIMER then
 			local timerValue = TIMER.Value or 0
 			local minutes = math.floor(timerValue/60)
-			local halfLabel = (CurrentHalf == 1) and "1º TEMPO" or "2º TEMPO"
+			local halfLabel = (CurrentHalf == 1) and "1o TEMPO" or "2o TEMPO"
 
 			if timerValue > 0 and timerValue % 120 == 0 then
 				if lastPeriodicMinute ~= minutes then
 					lastPeriodicMinute = minutes
-					sendToDiscord("?? ATUALIZAÇÃO - " .. halfLabel .. " - " .. tostring(minutes) .. " min", StatsData[CurrentHalf], false)
+					sendToDiscord("[UPDATE] " .. halfLabel .. " - " .. tostring(minutes) .. " min", StatsData[CurrentHalf], false)
 				end
 			end
 

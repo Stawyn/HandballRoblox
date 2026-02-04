@@ -36,11 +36,9 @@ local CSS = [[
         background-color: var(--bg-color);
         color: var(--text-main);
         margin: 0;
-        padding: 40px;
-        width: 1200px;
-        /* Height auto to accommodate content, or fixed if desired. The previous one was 675px.
-           Let's keep it flexible or slightly larger to fit the new tables. */
-        min-height: 675px; 
+        padding: 20px;
+        width: 1100px;
+        min-height: 600px; 
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -198,7 +196,7 @@ function HtmlTemplates.GetTemplate()
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=1280">
+    <meta name="viewport" content="width=1140">
     ]] .. CSS .. [[
 </head>
 <body>
