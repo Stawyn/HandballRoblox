@@ -239,64 +239,8 @@ local function sendToDiscord(title, dataScope, isTotal, skipStats)
 				warn("Statistics: Failed to generate image via API: " .. tostring(success and response.StatusCode or response))
 			end
 			
-			-- Se falhar a imagem, poderíamos adicionar texto como fallback, 
-			-- mas o usuário pediu "Só a imagem". Se falhar, vai sem stats ou só com título.
-			-- Para garantir que algo apareça se a imagem falhar, podemos adicionar texto APENAS se não tiver URL.
-			
-			local hasImage = (payload.embeds[1]["image"] ~= nil)
-			
-			if not hasImage and not skipStats and dataScope then
-				-- Fallback: Adiciona texto se a imagem falhou
-				local playerHeader = string.format("%s | RATING | G | A | CA | S | MIS | EF%% | STL | PAS | ERR\n%s", pad("JOGADOR", 4), string.rep("-", 60))
-				local gkHeader = string.format("%s | DEF | GS | GKA | %%DEF\n%s", pad("GOLEIRO", 10), string.rep("-", 45))
-				
-				local playerBody = ""
-				local gkBody = ""
-				local hasGK = false
-				local list = {}
-				
-				for uid, stats in pairs(dataScope) do
-					local uidNum = tonumber(uid)
-					local name = (stats and stats.Name and stats.Name ~= "") and stats.Name or KnownNames[uidNum] or "Player_"..uid
-					local shortName = name
-					if #shortName > 4 then shortName = string.sub(shortName, 1, 4) end
-					local teamName = stats.LastTeamName or ""
-					local color = "\27[1;32m" -- default green
-					if teamName ~= "" then
-						if string.find(string.lower(teamName), "away") then color = "\27[1;31m" 
-						elseif string.find(string.lower(teamName), "home") then color = "\27[1;34m" end
-					end
-					local reset = "\27[0m"
-					table.insert(list, {Name = shortName, FullName = name, Stats = stats, Color = color, Reset = reset})
-				end
-				
-				for _, item in ipairs(list) do
-					local s = item.Stats
-					local ef = (s.EficPct or 0) .. "%"
-					local dp = (s.DefPct or 0) .. "%"
-					local passes = (s.PassesCompleted or 0) .. "/" .. (s.PassesAttempted or 0)
-					local rating = string.format("%.1f", s.Rating or 6.0)
-					local misses = s.Misses or 0
-					
-					playerBody ..= string.format("%s%s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s%s\n",
-						item.Color, pad(item.Name, 4), pad(rating, 6), pad(s.Goals or 0, 1), pad(s.Assists or 0, 1), pad(s.FastBreakGoals or 0, 2), pad(s.SOG or 0, 1), pad(misses, 3), pad(ef, 3), pad(s.Steals or 0, 3), pad(passes, 5), pad(s.Turnovers or 0, 3), item.Reset
-					)
-					
-					local isGK = ( (s.Saves or 0) > 0 or (s.SaveAttempts or 0) > 0 )
-					if s.LastTeamName and string.sub(s.LastTeamName, 1, 1) == "-" then isGK = true end
-					
-					if isGK then
-						hasGK = true
-						gkBody ..= string.format("%s%s | %s | %s | %s | %s%s\n",
-							item.Color, pad(item.Name, 10), pad(s.Saves or 0, 3), pad(s.GoalsConceded or 0, 2), pad(s.GKAssists or 0, 3), pad(dp, 4), item.Reset
-						)
-					end
-				end
-				
-				table.insert(payload.embeds[1].fields, { ["name"] = "? JOGADORES", ["value"] = "```ansi\n" .. "\27[1;37m" .. playerHeader .. "\n" .. playerBody .. "```" })
-				table.insert(payload.embeds[1].fields, { ["name"] = "?? GOLEIROS", ["value"] = hasGK and ("```ansi\n" .. "\27[1;37m" .. gkHeader .. "\n" .. gkBody .. "```") or "```\nSem dados de GK\n```" })
-			end
-			
+			-- Issue 9: Send ONLY the image, no text fallback
+			-- Se falhar a imagem, o webhook vai só com título/timestamp
 			doSend(payload)
 		end)
 		return -- Exit function, async task handles sending

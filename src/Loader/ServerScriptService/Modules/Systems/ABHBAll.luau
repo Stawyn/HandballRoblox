@@ -1124,27 +1124,27 @@ function ABHBall:HandleGoalkeeperSave(instance: SharedTypes.ABHBallInstance, cfr
 		vectorForce:Destroy()
 	end
 
-	local velocity = instance.AssemblyLinearVelocity :: Vector3
-	local multiplier = math.clamp(instance.AssemblyLinearVelocity.Magnitude, 15, 90)
-	local ballVelocity = cframe.LookVector.Unit * multiplier
-
-	local releasePosition = cframe * RELEASE_OFFSET
-	local velocity = ballVelocity + Vector3.new(0, VERTICAL_SAVE_LINEAR, 0)
-	ABHBall:ApplyVerticalForce(instance)
-	instance.CFrame = releasePosition
-	instance.AssemblyAngularVelocity = Vector3.new()
-	instance.AssemblyLinearVelocity = velocity
-	instance.Information.CurrentPlayerOnBall.Value = nil
+	-- Issue 1: GK agora vira dono da bola após defesa (em vez de ricochetear)
+	instance.AssemblyLinearVelocity = Vector3.zero
+	instance.AssemblyAngularVelocity = Vector3.zero
+	
+	-- Dar posse ao goleiro
+	if not ballPlayersCooldown[instance] then ballPlayersCooldown[instance] = {} end
+	ApplyBallWeld(instance, player)
+	instance.Information.CurrentPlayerOnBall.Value = player
+	instance.Information.CanTackle.Value = false
+	
 	if instance.Information.LastThrow.Value ~= instance.Information.LastLastThrow.Value then
 		instance.Information.LastLastThrow.Value = instance.Information.LastThrow.Value
 	end
 	instance.Information.LastThrow.Value = player
 	
-	-- Segurança: Garantir reset seguro do atributo Saved e cooldown
+	-- Habilitar tackle após cooldown
 	task.delay(0.5, function()
 		if instance and instance.Parent then
 			instance:SetAttribute("Saved", false)
 			ABHBall:SetGLTCooldown(instance, false)
+			instance.Information.CanTackle.Value = true
 		end
 	end)
 end

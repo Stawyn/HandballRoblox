@@ -132,7 +132,7 @@ local CSS = [[
     }
 
     th:first-child { text-align: left; padding-left: 20px; }
-    th.mvp-col { color: var(--accent-gold); }
+    th.rating-col { color: var(--accent-gold); }
 
     td {
         padding: 14px 6px;
@@ -153,7 +153,7 @@ local CSS = [[
         color: #eee;
     }
 
-    .mvp-star { color: var(--accent-gold); font-size: 18px; }
+    .rating-star { color: var(--accent-gold); font-size: 18px; }
     
     .stat-highlight { font-weight: 700; color: var(--text-main); }
     .stat-dim { color: var(--text-dim); }
@@ -219,7 +219,7 @@ function HtmlTemplates.GetTemplate()
             <thead>
                 <tr>
                     <th rowspan="2" style="width: 180px;">JOGADOR</th>
-                    <th rowspan="2" class="mvp-col">MVP</th>
+                    <th rowspan="2" class="rating-col">RATING</th>
                     <th colspan="5" class="cat-header cat-ataque">ATAQUE</th>
                     <th colspan="2" class="cat-header cat-tecnico">TECNICO</th>
                     <th colspan="2" class="cat-header cat-geral">GERAL</th>
@@ -251,7 +251,7 @@ function HtmlTemplates.GetTemplate()
             <thead>
                 <tr>
                     <th rowspan="2" style="width: 180px;">JOGADOR</th>
-                    <th rowspan="2" class="mvp-col">MVP</th>
+                    <th rowspan="2" class="rating-col">RATING</th>
                     <th colspan="5" class="cat-header cat-ataque">ATAQUE</th>
                     <th colspan="2" class="cat-header cat-tecnico">TECNICO</th>
                     <th colspan="2" class="cat-header cat-geral">GERAL</th>
@@ -297,7 +297,7 @@ function HtmlTemplates.GenerateRow(stats, isMvp)
     local rating = string.format("%.1f", stats.Rating or 6.0)
     
     -- MVP Star
-    local mvpCell = isMvp and '<td class="mvp-star">★</td>' or '<td></td>'
+    local ratingCell = isMvp and '<td class="rating-star">★</td>' or '<td></td>'
 
     -- Stats Mapping
     local goals = stats.Goals or 0
@@ -343,7 +343,7 @@ function HtmlTemplates.GenerateRow(stats, isMvp)
         <td class="stat-highlight">%s</td>
     </tr>
     ]], 
-    name, mvpCell, 
+    name, ratingCell, 
     goals, assists, sog, ca, efPct, 
     passes, possession, 
     steals, err, 

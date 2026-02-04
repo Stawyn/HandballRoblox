@@ -178,11 +178,13 @@ local function LockPlayerToForceField(player: Player, forceField: BasePart)
 		end)
 		lockJanitor:Add(heartbeatConn, "Disconnect")
 
-		-- Desabilita pulo
+		-- Issue 5: Desabilita pulo E movimento
 		local oldJumpPower = humanoid.JumpPower
 		local oldJumpHeight = humanoid.JumpHeight
+		local oldWalkSpeed = humanoid.WalkSpeed
 		humanoid.JumpPower = 0
 		humanoid.JumpHeight = 0
+		humanoid.WalkSpeed = 0
 
 		lockJanitor:Add(function()
 			-- Cleanup
@@ -193,6 +195,7 @@ local function LockPlayerToForceField(player: Player, forceField: BasePart)
 			if humanoid and humanoid.Parent and humanoid.Health > 0 then
 				humanoid.JumpPower = oldJumpPower
 				humanoid.JumpHeight = oldJumpHeight
+				humanoid.WalkSpeed = oldWalkSpeed
 			end
 		end)
 
@@ -599,9 +602,8 @@ function ABHLeague:ThrowOff(spawner: Player?)
 				-- Raposa: Trava movimento e pulo ao pegar a bola
 				LockPlayerToForceField(player, forceField)
 
-				-- Teleport to center of ForceField at GROUND LEVEL
-				-- Usar Y fixo de 3 para sempre ficar no chao
-				local safePos = Vector3.new(ballInstance.Position.X, 3, ballInstance.Position.Z)
+				-- Issue 4: Teleport para o CENTRO do ForceField (mesma altura da bola)
+				local safePos = Vector3.new(ballInstance.Position.X, ballInstance.Position.Y, ballInstance.Position.Z)
 				humanoidRootPart.CFrame = CFrame.new(safePos)
 				humanoidRootPart.AssemblyLinearVelocity = Vector3.zero
 				humanoidRootPart.AssemblyAngularVelocity = Vector3.zero
@@ -613,10 +615,9 @@ function ABHLeague:ThrowOff(spawner: Player?)
 		-- Se for o time dono da bola e tentou sair (ou entrou e nao e o taker), levamos pro meio do forcefield
 		-- Se for o time adversario, expulsamos
 		if isAllowedTeam then
-			-- Se ja foi pego e nao e o taker, ou se esta tentando sair, volta pro centro
-			-- Usar Y fixo de 3 para sempre ficar no chao
+			-- Issue 4: Volta pro centro (mesma altura da bola)
 			if ballInstance and ballInstance.Parent then
-				humanoidRootPart.CFrame = CFrame.new(ballInstance.Position.X, 3, ballInstance.Position.Z)
+				humanoidRootPart.CFrame = CFrame.new(ballInstance.Position.X, ballInstance.Position.Y, ballInstance.Position.Z)
 				humanoidRootPart.AssemblyLinearVelocity = Vector3.zero
 			end
 		else

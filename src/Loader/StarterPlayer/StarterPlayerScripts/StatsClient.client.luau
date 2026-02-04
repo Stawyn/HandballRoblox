@@ -28,7 +28,7 @@ local COLORS = {
 	Defense = Color3.fromHex("#ff6b6b"),
 	GK = Color3.fromHex("#f093fb"),
 	Tech = Color3.fromHex("#a8ff78"),
-	MVP = Color3.fromHex("#ffd700"),
+	Rating = Color3.fromHex("#ffd700"),
 	Normal = Color3.fromRGB(255, 255, 255),
 	Offline = Color3.fromHex("#2ecc71"),
 
@@ -52,7 +52,7 @@ end
 -- Column Definition (Organized by Color)
 local COLUMNS = {
 	{Id = "Player",     Name = "JOGADOR",   Width = 0.18, Color = THEME.Text, Category = ""},
-	{Id = "MVP",        Name = "MVP",       Width = 0.06, Color = COLORS.MVP,       Format = "Number", Category = ""},
+	{Id = "Rating",    Name = "RATING",    Width = 0.06, Color = COLORS.Rating,     Format = "Number", Category = ""},
 
 	-- Ataque (Azul)
 	{Id = "Goals",      Name = "GOLS",      Width = 0.05, Color = COLORS.Attack,    Format = "Number", Category = "ATAQUE"},
@@ -79,7 +79,7 @@ local COLUMNS = {
 --// State //--
 local CurrentData = {}
 local CurrentView = "Total"
-local CurrentSortColumn = "MVP"
+local CurrentSortColumn = "Rating"
 local SortDescending = true
 local GuiInstance = nil
 local ContentFrame = nil
@@ -148,7 +148,7 @@ local function getOrCreateRow(index)
 		cell.Position = UDim2.new(currentX, 0, 0, 0)
 		cell.BackgroundTransparency = 1
 		cell.TextColor3 = col.Color
-		cell.Font = (col.Id == "Player" or col.Id == "MVP") and FONTS.Bold or FONTS.Regular
+		cell.Font = (col.Id == "Player" or col.Id == "Rating") and FONTS.Bold or FONTS.Regular
 		cell.TextSize = isMobile and 11 or 14
 		cell.TextXAlignment = Enum.TextXAlignment.Center
 

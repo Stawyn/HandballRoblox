@@ -51,7 +51,7 @@ local GLT_FOLDER = workspace:WaitForChild("Core"):WaitForChild("GLT") :: Folder
 local HOME_GLT = GLT_FOLDER:WaitForChild("Home") :: BasePart
 local AWAY_GLT = GLT_FOLDER:WaitForChild("Away") :: BasePart
 
-local GLT_DELAY = 0.275 -- Delay antes de confirmar gol (para saves)
+local GLT_DELAY = 0.3 -- Delay antes de confirmar gol (para saves)
 
 --// ============================================================================
 --// SETOR: FUNCOES INTERNAS - VISUAL
@@ -240,6 +240,32 @@ local function handleGLT(GLT: BasePart)
 				if defendingGKTeam then
 					for _, gk in pairs(defendingGKTeam:GetPlayers()) do
 						GameStatistics.RecordEvent(gk, "GoalConceded")
+						
+						-- Issue 3: Trocar KeeperTool por tool normal para GK poder pegar bola
+						local ServerStorage = game:GetService("ServerStorage")
+						local character = gk.Character
+						local backpack = gk.Backpack
+						
+						-- Remover KeeperTool do personagem ou backpack
+						if character then
+							local keeperToolChar = character:FindFirstChild("KeeperTool")
+							if keeperToolChar then
+								keeperToolChar:Destroy()
+							end
+						end
+						if backpack then
+							local keeperToolBP = backpack:FindFirstChild("KeeperTool")
+							if keeperToolBP then
+								keeperToolBP:Destroy()
+							end
+						end
+						
+						-- Dar SpawnTool se não tiver
+						local SPAWN_TOOL = ServerStorage:FindFirstChild("SpawnTool")
+						if SPAWN_TOOL and backpack and not backpack:FindFirstChild("SpawnTool") then
+							local spawnTool = SPAWN_TOOL:Clone()
+							spawnTool.Parent = backpack
+						end
 					end
 				end
 			end

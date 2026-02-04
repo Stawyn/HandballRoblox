@@ -52,7 +52,7 @@ local MIN_REACTION = 0
 local MAX_ITERATIONS = 100
 local MIN_PERCENTAGE_RATE = 0
 local MAX_DIST = 10  -- Bug #12/15: Reduzido de 15 para 10 studs
-local GOALKEEPER_COOLDOWN = 1  -- Bug #12/15: Aumentado de 0.75 para 1 segundo
+local GOALKEEPER_COOLDOWN = 0.75  -- Issue #7: Reduzido para 0.75s
 local MAX_GOALKEEPER_MAGNITUDE = 25  -- Bug #12/15: Reduzido de 30 para 25
 local MAX_PREDICT_MAGNITUDE = 30  -- Bug #12/15: Reduzido de 45 para 30
 
@@ -203,11 +203,11 @@ function KeeperTool:Initialize(tool: Tool)
 			CFrame = goalCFrame,
 		}):Play()
 
-		Debris:AddItem(linearVelocity, 0.5)
-		Debris:AddItem(alignOrientation, 0.5)
-		task.wait(0.5)
+		Debris:AddItem(linearVelocity, 0.3)
+		Debris:AddItem(alignOrientation, 0.3)
+		task.wait(0.25)
 		humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-		task.wait(0.5)
+		task.wait(0.25)
 		cooldown = false
 	end
 	
@@ -298,11 +298,11 @@ function KeeperTool:Initialize(tool: Tool)
 				CFrame = goalCFrame,
 			}):Play()
 
-			Debris:AddItem(linearVelocity, 0.5)
-			Debris:AddItem(alignOrientation, 0.5)
-			task.wait(0.5)
+			Debris:AddItem(linearVelocity, 0.3)
+			Debris:AddItem(alignOrientation, 0.3)
+			task.wait(0.25)
 			humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-			task.wait(0.5)
+			task.wait(0.25)
 			cooldown = false
 		else
 			coroutine.wrap(dive)(humanoid, humanoidRootPart)

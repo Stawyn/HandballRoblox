@@ -394,35 +394,17 @@ TACKLING_FUNCTION.OnServerInvoke = function(player: Player)
 		return
 	end
 	
-	-- Segurança C2: Validar distância para Tackle (Anti-Teleport Exploit)
-	local nearestBall = nil
-	local minDist = math.huge
-	
-	for _, ball in BALLS_FOLDER:GetChildren() do
-		if ball:IsA("BasePart") then
-			local d = (ball.Position - hrp.Position).Magnitude
-			if d < minDist then
-				minDist = d
-				nearestBall = ball
-			end
-		end
-	end
-	
-	-- Se tackle for invocado sem bola perto (max 12 studs), ignorar
-	if minDist > 12 then
-		return
-	end
-
+	-- Verificar cooldown primeiro (antes de qualquer animação)
 	if tacklingCooldown[player.UserId] then
 		return
 	end
 
 	tacklingCooldown[player.UserId] = true
-	-- Alto #5: Aumentado cooldown de tackle de 1s para 2s
 	task.delay(2, function()
 		tacklingCooldown[player.UserId] = nil
 	end)
 
+	-- Issue 6: Animação de tackle roda SEMPRE (visual)
 	local animator = humanoid:WaitForChild("Animator") :: Animator
 	local currentHand = player:GetAttribute("CurrentHand")
 	local animationToLoad
@@ -443,11 +425,27 @@ TACKLING_FUNCTION.OnServerInvoke = function(player: Player)
 		return
 	end
 
-
 	animationToLoad.Priority = Enum.AnimationPriority.Action4
 	animationToLoad:Play()	
+	
+	-- Segurança C2: Validar distância para Tackle (steal só funciona perto)
+	local nearestBall = nil
+	local minDist = math.huge
+	
+	for _, ball in BALLS_FOLDER:GetChildren() do
+		if ball:IsA("BasePart") then
+			local d = (ball.Position - hrp.Position).Magnitude
+			if d < minDist then
+				minDist = d
+				nearestBall = ball
+			end
+		end
+	end
+	
+	-- Issue 6: Animação já tocou, mas o STEAL só funciona se tiver bola perto
+	local tackleCanSteal = (minDist <= 12)
 
-	local tackleActive = true
+	local tackleActive = tackleCanSteal
 	task.spawn(function()
 		local overlapParams = OverlapParams.new()
 		overlapParams.FilterDescendantsInstances = {BALLS_FOLDER, workspace}
