@@ -1,0 +1,19 @@
+{
+  "className": "TextLabel",
+  "properties": {
+    "BackgroundTransparency": 1,
+    "FontFace": {
+      "family": "rbxasset://fonts/families/GothamSSm.json",
+      "weight": "Bold",
+      "style": "Normal",
+      "cachedFaceId": null
+    },
+    "Position": [[0.0, 10.0], [0.0, 10.0]],
+    "Size": [[1.0, -20.0], [0.0, 25.0]],
+    "Text": "📦 OWNED",
+    "TextColor3": [0.7059, 0.7059, 0.7059],
+    "TextSize": 12,
+    "TextXAlignment": "Left",
+    "ZIndex": 102
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "className": "TextLabel",
+  "properties": {
+    "AnchorPoint": [1, 0.5],
+    "AutomaticSize": "XY",
+    "BackgroundColor3": [0.9412, 0.8392, 0.6824],
+    "BorderColor3": [0, 0, 0],
+    "BorderSizePixel": 0,
+    "FontFace": {
+      "family": "rbxasset://fonts/families/Fondamento.json",
+      "weight": "Bold",
+      "style": "Normal",
+      "cachedFaceId": null
+    },
+    "Position": [[0.795, 0.0], [0.5, 0.0]],
+    "Text": "ActionName",
+    "TextColor3": [0.1529, 0.1529, 0.1529],
+    "TextScaled": true,
+    "TextSize": 18,
+    "TextWrapped": true,
+    "TextXAlignment": "Right"
+  }
+}

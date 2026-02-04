@@ -1,0 +1,11 @@
+{
+  "className": "Part",
+  "properties": {
+    "CFrame": [203.4, 45.433, 145.9579, 1, 0, 0, 0, 1, 0, 0, 0, 1],
+    "Color": [127, 127, 127],
+    "FormFactor": "Symmetric",
+    "PivotOffset": [0, -4.5, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1],
+    "Size": [2, 1, 1],
+    "TopSurface": "Smooth"
+  }
+}

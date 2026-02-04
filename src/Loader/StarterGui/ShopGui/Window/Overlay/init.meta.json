@@ -1,0 +1,10 @@
+{
+  "className": "TextButton",
+  "properties": {
+    "AutoButtonColor": false,
+    "BackgroundTransparency": 1,
+    "Size": [[1.0, 0.0], [1.0, 0.0]],
+    "Text": "",
+    "ZIndex": 99
+  }
+}

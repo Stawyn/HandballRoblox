@@ -1,15 +1,48 @@
+--[[
+    ================================================================================
+    MÓDULO: Topbar (Client)
+    ================================================================================
+    Descrição: Sistema de barra superior do jogo ABH com ícones de ações rápidas.
+    
+    Funcionalidades:
+        - Toggle de expansão/contração da barra
+        - BallCam: Câmera focada na bola
+        - ABHMenu: Acesso ao menu principal (F8)
+        - Stats: Toggle de estatísticas ao vivo
+        - RefereeUI: Painel de árbitro (apenas Officials)
+        - Technical Pause: Pausa técnica para managers
+    
+    Ícones:
+        - ⚙️ Menu/Settings
+        - ⚽ BallCamera
+        - 📊 Stats
+        - 🛡️ Referee (Officials only)
+        - ⏸️ Pause (Managers only)
+    
+    Autor: Sistema ABH
+    ================================================================================
+]]
+
+--// ============================================================================
+--// SETOR: SERVIÇOS E DEPENDÊNCIAS
+--// ============================================================================
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
 local Debris = game:GetService("Debris")
+local UserInputService = game:GetService("UserInputService")
 
 local Icon = require("../../Utilities/Icon")
-local ClientNetwork = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("ClientNetwork"))
-local InputSystem = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("InputSystem"))
-local Janitor = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Janitor"))
+local ClientNetwork = require("../Implementation/ClientNetwork")
+local InputSystem = require("../Implementation/InputSystem")
+local Janitor = require("../../Utilities/Janitor")
 
-local UserInputService = game:GetService("UserInputService")
 local isMobile = UserInputService.TouchEnabled
+
+--// ============================================================================
+--// SETOR: REFERÊNCIAS
+--// ============================================================================
 
 local NETWORK_FOLDER = ReplicatedStorage:WaitForChild("Network") :: Folder
 local BALLS_FOLDER = workspace:WaitForChild("Core"):WaitForChild("Balls")
@@ -21,15 +54,26 @@ local leagueWarningsUI = playerGui:WaitForChild("LeagueWarnings")
 local warningTextLabel = leagueWarningsUI:WaitForChild("Warnings") :: TextLabel
 local refUI = playerGui:WaitForChild("RefereeUI", math.huge) :: ScreenGui
 local abhMenu = playerGui:WaitForChild("ABHMenu", math.huge) :: ScreenGui
+local shopGui = playerGui:WaitForChild("ShopGui", math.huge) :: ScreenGui
 local blur = Lighting.Blur
+
+--// ============================================================================
+--// SETOR: ESTADO E ÍCONES
+--// ============================================================================
+
 local menuIcon = Icon.new()
 local ballcamIcon = Icon.new()
 local pauseIcon = Icon.new()
 local statsIcon = Icon.new()
+local shopIcon = Icon.new()
 local generalJanitor = Janitor.new()
 
 local isExpanded = false
 local separatorBars = {}
+
+--// ============================================================================
+--// SETOR: FUNÇÕES AUXILIARES
+--// ============================================================================
 
 local function updateIconVisibility(icon)
 	if icon then
@@ -74,6 +118,8 @@ topbarToggle:setName("TopbarToggle")
 			-- (it might be newly created or destroyed)
 			updateIconVisibility(pauseIcon)
 		end
+
+		updateIconVisibility(shopIcon)
 	end)
 	:oneClick(true)
 
@@ -83,7 +129,7 @@ local pauseCooldown = false
 local ballcamActive = false
 
 ballcamIcon:setName("Menu")
-	:setLabel("âš™ï¸")
+	:setLabel("⚙️")
 	:setTextFont("RobotoMono", Enum.FontWeight.Bold)
 	:setOrder(3)
 	:setTheme(BIG_THEME) -- Apply larger theme
@@ -116,7 +162,7 @@ end)
 
 menuIcon
 	:setName("BallCamera")
-	:setLabel("âš½")
+	:setLabel("⚽")
 	:setOrder(2)
 	:setTheme(BIG_THEME) -- Apply larger theme
 	:setTextFont("RobotoMono", Enum.FontWeight.Bold)
@@ -137,6 +183,15 @@ menuIcon
 		end
 	end)
 	:oneClick(true)
+
+BALLS_FOLDER.ChildAdded:Connect(function(newBall)
+	if ballcamActive then
+		local currentSubject = workspace.CurrentCamera.CameraSubject
+		if not currentSubject or not currentSubject.Parent then
+			workspace.CurrentCamera.CameraSubject = newBall
+		end
+	end
+end)
 
 updateIconVisibility(menuIcon)
 
@@ -187,7 +242,7 @@ end
 
 -- Stats Icon
 statsIcon:setName("StatsToggle")
-	:setLabel("ðŸ“Š")
+	:setLabel("📊")
 	:setTextFont("RobotoMono", Enum.FontWeight.Bold)
 	:setOrder(1)
 	:setTheme(BIG_THEME) -- Apply larger theme
@@ -201,6 +256,20 @@ statsIcon:setName("StatsToggle")
 	:oneClick(true)
 
 updateIconVisibility(statsIcon)
+
+-- Shop Icon
+local shopWindow = shopGui:WaitForChild("Window")
+shopIcon:setName("ShopToggle")
+	:setLabel("🛒")
+	:setTextFont("RobotoMono", Enum.FontWeight.Bold)
+	:setOrder(0)
+	:setTheme(BIG_THEME)
+	:bindEvent("deselected", function()
+		shopWindow.Visible = not shopWindow.Visible
+	end)
+	:oneClick(true)
+
+updateIconVisibility(shopIcon)
 
 function onTeamChanged()
 	generalJanitor:Cleanup()
@@ -216,7 +285,7 @@ function onTeamChanged()
 		local refIcon = Icon.new()
 		refIcon
 			:setName("RefereeUI")
-			:setLabel("ðŸ›¡ï¸")
+			:setLabel("🛡️")
 			:setTextFont("RobotoMono", Enum.FontWeight.Bold)
 			:setTheme(BIG_THEME) -- Apply larger theme
 			:bindEvent("deselected", function()
@@ -254,7 +323,7 @@ LEAGUE_EVENT.OnClientEvent:Connect(function(action)
 		pauseIcon = Icon.new()
 		pauseIcon
 			:setName("TechnicalPause")
-			:setLabel("â¸ï¸")
+			:setLabel("⏸️")
 			:setTextFont("RobotoMono", Enum.FontWeight.Bold)
 			:setTheme(BIG_THEME) -- Apply larger theme
 			:bindEvent("deselected", function()
@@ -284,5 +353,4 @@ LEAGUE_EVENT.OnClientEvent:Connect(function(action)
 end)
 
 return {}
-
 

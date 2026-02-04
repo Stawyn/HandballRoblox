@@ -1,0 +1,12 @@
+{
+  "className": "ImageLabel",
+  "properties": {
+    "AnchorPoint": [1, 0.5],
+    "BackgroundColor3": [0.6745, 0.6784, 0.6784],
+    "BorderColor3": [0, 0, 0],
+    "BorderSizePixel": 0,
+    "ImageContent": "rbxasset://textures/ui/GuiImagePlaceholder.png",
+    "LayoutOrder": 1,
+    "ScaleType": "Fit"
+  }
+}

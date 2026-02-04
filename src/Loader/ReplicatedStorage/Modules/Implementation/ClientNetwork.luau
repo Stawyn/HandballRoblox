@@ -1,34 +1,33 @@
 --[[
-	================================================================================
-	MÓDULO: ClientNetwork
-	================================================================================
-	
-	Descrição:
-		Centraliza todas as chamadas de rede do cliente para o servidor.
-		Encapsula RemoteEvents e RemoteFunctions em uma API limpa.
-	
-	Setores:
-		- Ball: Spawn, drop e clear de bolas
-		- Throw: Arremesso e fake throw
-		- Goalkeeper: Ações de defesa
-		- Referee: Controle de partida (gols, timer, nomes)
-		- League: Eventos de liga
-		- PlayerData: Configurações de controles
-		- Tackling: Roubadas de bola
-	
-	Autor: Sistema ABH
-	================================================================================
+    ================================================================================
+    MÓDULO: ClientNetwork
+    ================================================================================
+    Descrição: Wrapper de comunicação cliente → servidor para o projeto ABH.
+               Abstrai todos os RemoteEvents/RemoteFunctions em uma API limpa.
+    
+    Namespaces:
+        - BallEvents: Spawn, Clear, Drop de bolas
+        - SwitchHandsEvent: Troca de mão dominante
+        - ThrowEvent: Arremesso de bola
+        - GoalkeeperEvent: Ativar/desativar defesa
+        - RefereeEvent: Comandos de árbitro
+        - TacklingFunction: Tackle/roubo
+        - PlayerDataFunction: Keybinds e configurações
+        - LeagueEvent: Eventos da partida
+    
+    Autor: Sistema ABH
+    ================================================================================
 ]]
 
 --// ============================================================================
---// SETOR: Dependências
+--// SETOR: DEPENDÊNCIAS
 --// ============================================================================
 
-local SharedTypes = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("SharedTypes"))
+local SharedTypes = require("../../../ReplicatedStorage/Utilities/SharedTypes")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 --// ============================================================================
---// SETOR: Referências de Rede
+--// SETOR: REFERÊNCIAS DE REDE
 --// ============================================================================
 
 local NETWORK_FOLDER = ReplicatedStorage:WaitForChild("Network") :: Folder
@@ -42,12 +41,10 @@ local PLAYERDATA_FUNCTION = NETWORK_FOLDER:WaitForChild("PlayerData") :: RemoteF
 local LEAGUE_EVENT = NETWORK_FOLDER:WaitForChild("LeagueEvent") :: RemoteEvent
 
 --// ============================================================================
---// SETOR: Estrutura do Módulo
+--// SETOR: ESTRUTURA DO MÓDULO
 --// ============================================================================
 
 local ClientNetwork = {}
-
--- Sub-módulos organizados por funcionalidade
 ClientNetwork.BallEvents = {}
 ClientNetwork.SwitchHandsEvent = {}
 ClientNetwork.ThrowEvent = {}
@@ -56,329 +53,179 @@ ClientNetwork.RefereeEvent = {}
 ClientNetwork.TacklingFunction = {}
 ClientNetwork.PlayerDataFunction = {}
 ClientNetwork.LeagueEvent = {}
-
--- Referência direta para o RemoteEvent de árbitro (usado externamente)
 ClientNetwork.RefereeEventRemote = REFEREE_EVENT
 
 --// ============================================================================
---// SETOR: Eventos de Liga
+--// SETOR: LEAGUE EVENTS
 --// ============================================================================
 
---[[
-	Solicita pausa técnica ao servidor.
-]]
+--- Chama pausa técnica
 function ClientNetwork.LeagueEvent:CallForTechnicalPause()
 	LEAGUE_EVENT:FireServer("CALL_FOR_PAUSE")
 end
 
 --// ============================================================================
---// SETOR: Configurações do Jogador (PlayerData)
+--// SETOR: PLAYER DATA (Keybinds)
 --// ============================================================================
 
---[[
-	Altera a tecla de atalho para uma ação específica.
-	
-	@param contexto string - Nome do contexto de input
-	@param acao string - Nome da ação
-	@param nomeTecla string - Nome da nova tecla
-	@return any - Resposta do servidor
-]]
-function ClientNetwork.PlayerDataFunction:ChangeKeybind(contexto: string, acao: string, nomeTecla: string)
+--- Altera keybind de teclado
+function ClientNetwork.PlayerDataFunction:ChangeKeybind(context: string, action: string, keyName: string)
 	return PLAYERDATA_FUNCTION:InvokeServer("CHANGE_KEYBOARD_KEYBIND", {
-		contexto, acao, nomeTecla
+		context, action, keyName
 	})
 end
 
---[[
-	Altera o botào do gamepad para uma ação específica.
-	
-	@param contexto string - Nome do contexto de input
-	@param acao string - Nome da ação
-	@param nomeBotao string - Nome do novo botào
-	@return any - Resposta do servidor
-]]
-function ClientNetwork.PlayerDataFunction:ChangeGamepad(contexto: string, acao: string, nomeBotao: string)
+--- Altera keybind de gamepad
+function ClientNetwork.PlayerDataFunction:ChangeGamepad(context: string, action: string, keyName: string)
 	return PLAYERDATA_FUNCTION:InvokeServer("CHANGE_GAMEPAD_CONTROLS", {
-		contexto, acao, nomeBotao
+		context, action, keyName
 	})
 end
 
---[[
-	Personaliza posição e tamanho de botào mobile.
-	
-	@param contexto string - Nome do contexto de input
-	@param acao string - Nome da ação
-	@param offset {number} - Deslocamento [x, y]
-	@param escala number - Fator de escala
-	@return any - Resposta do servidor
-]]
-function ClientNetwork.PlayerDataFunction:CustomizeMobile(contexto: string, acao: string, offset: {number}, escala: number)
+--- Customiza controles mobile
+function ClientNetwork.PlayerDataFunction:CustomizeMobile(context: string, action: string, offset: {number}, scalar: number)
 	return PLAYERDATA_FUNCTION:InvokeServer("CHANGE_MOBILE_CONTROLS", {
-		contexto, acao, offset, escala
+		context, action, offset, scalar
 	})
 end
 
---[[
-	Restaura todas as configurações de controle para o padrào.
-	
-	@return any - Resposta do servidor
-]]
+--- Reseta todos os controles para padrão
 function ClientNetwork.PlayerDataFunction:ResetControls()
 	return PLAYERDATA_FUNCTION:InvokeServer("RESET_KEYBINDS")
 end
 
 --// ============================================================================
---// SETOR: Eventos de Bola
+--// SETOR: BALL EVENTS
 --// ============================================================================
 
---[[
-	Solicita spawn de uma nova bola.
-]]
+--- Solicita spawn de bola
 function ClientNetwork.BallEvents:SpawnRequest()
 	BALL_EVENTS:FireServer("SpawnRequest")
 end
 
---[[
-	Solicita remoção de todas as bolas.
-]]
+--- Solicita remoção de bolas
 function ClientNetwork.BallEvents:ClearRequest()
 	BALL_EVENTS:FireServer("ClearRequest")
 end
 
---[[
-	Solicita drop da bola atual.
-]]
+--- Solicita drop da bola
 function ClientNetwork.BallEvents:DropRequest()
 	BALL_EVENTS:FireServer("DropRequest")
 end
 
 --// ============================================================================
---// SETOR: Troca de mãos
+--// SETOR: SWITCH HANDS
 --// ============================================================================
 
---[[
-	Solicita troca de mão para segurar a bola.
-]]
+--- Troca mão dominante
 function ClientNetwork.SwitchHandsEvent:SwitchRequest()
 	SWITCH_HAND_EVENT:FireServer()
 end
 
 --// ============================================================================
---// SETOR: Arremesso
+--// SETOR: THROW EVENT
 --// ============================================================================
 
---[[
-	Envia dados de arremesso para o servidor.
-	
-	@param poder number - Poder do arremesso (0-100)
-	@param dadosDirecao DirectionData - Dados de direção do arremesso
-]]
-function ClientNetwork.ThrowEvent:Throw(poder: number, dadosDirecao: SharedTypes.DirectionData)
-	THROW_EVENT:FireServer(poder, dadosDirecao)
+--- Arremessa a bola
+function ClientNetwork.ThrowEvent:Throw(power: number, directionData: SharedTypes.DirectionData)
+	THROW_EVENT:FireServer(power, directionData)
 end
 
 --// ============================================================================
---// SETOR: Goleiro
+--// SETOR: GOALKEEPER
 --// ============================================================================
 
---[[
-	Notifica o servidor sobre estado de defesa do goleiro.
-	
-	@param estado boolean - True se está defendendo, false caso contrário
-]]
-function ClientNetwork.GoalkeeperEvent:Save(estado: boolean)
-	GOALKEEPER_EVENT:FireServer(estado)
+--- Ativa/desativa modo defesa
+function ClientNetwork.GoalkeeperEvent:Save(state: boolean)
+	GOALKEEPER_EVENT:FireServer(state)
 end
 
 --// ============================================================================
---// SETOR: àrbitro - Controle de Placar
+--// SETOR: REFEREE EVENTS
 --// ============================================================================
 
---[[
-	Adiciona um gol ao placar.
-	
-	@param ehHome boolean - True para time da casa, false para visitante
-]]
-function ClientNetwork.RefereeEvent:AddGoal(ehHome: boolean)
-	REFEREE_EVENT:FireServer({
-		action = "ADD_GOAL",
-		isHome = ehHome
-	})
+--- Adiciona gol
+function ClientNetwork.RefereeEvent:AddGoal(isHome: boolean)
+	REFEREE_EVENT:FireServer({ action = "ADD_GOAL", isHome = isHome })
 end
 
---[[
-	Remove um gol do placar.
-	
-	@param ehHome boolean - True para time da casa, false para visitante
-]]
-function ClientNetwork.RefereeEvent:RemoveGoal(ehHome: boolean)
-	REFEREE_EVENT:FireServer({
-		action = "REMOVE_GOAL",
-		isHome = ehHome
-	})
+--- Remove gol
+function ClientNetwork.RefereeEvent:RemoveGoal(isHome: boolean)
+	REFEREE_EVENT:FireServer({ action = "REMOVE_GOAL", isHome = isHome })
 end
 
---[[
-	Reseta o placar para 0x0.
-]]
+--- Reseta placar
 function ClientNetwork.RefereeEvent:ResetScore()
-	REFEREE_EVENT:FireServer({
-		action = "RESET_SCORE"
-	})
+	REFEREE_EVENT:FireServer({ action = "RESET_SCORE" })
 end
 
---// ============================================================================
---// SETOR: àrbitro - Controle de Timer
---// ============================================================================
-
---[[
-	Inicia o cronà´metro da partida.
-]]
+--- Inicia timer
 function ClientNetwork.RefereeEvent:StartTimer()
-	REFEREE_EVENT:FireServer({
-		action = "TOGGLE_TIMER",
-		state = true
-	})
+	REFEREE_EVENT:FireServer({ action = "TOGGLE_TIMER", state = true })
 end
 
---[[
-	Para o cronà´metro da partida.
-]]
+--- Para timer
 function ClientNetwork.RefereeEvent:StopTimer()
-	REFEREE_EVENT:FireServer({
-		action = "TOGGLE_TIMER",
-		state = false
-	})
+	REFEREE_EVENT:FireServer({ action = "TOGGLE_TIMER", state = false })
 end
 
---[[
-	Alterna o timer da bola.
-]]
+--- Toggle ball timer
 function ClientNetwork.RefereeEvent:ToggleBallTimer()
-	REFEREE_EVENT:FireServer({
-		action = "TOGGLE_BALL_TIMER"
-	})
+	REFEREE_EVENT:FireServer({ action = "TOGGLE_BALL_TIMER" })
 end
 
---[[
-	Reseta o cronà´metro para zero.
-]]
+--- Altera nome do time
+function ClientNetwork.RefereeEvent:ChangeTeamName(name: string, isHome: boolean)
+	REFEREE_EVENT:FireServer({ action = "TOGGLE_NAME", teamName = name, isHome = isHome })
+end
+
+--- Reseta timer
 function ClientNetwork.RefereeEvent:ResetTimer()
-	REFEREE_EVENT:FireServer({
-		action = "RESET_TIMER"
-	})
+	REFEREE_EVENT:FireServer({ action = "RESET_TIMER" })
 end
 
---// ============================================================================
---// SETOR: àrbitro - Nomes de Times
---// ============================================================================
-
---[[
-	Altera o nome de um time.
-	
-	@param nome string - Novo nome do time
-	@param ehHome boolean - True para time da casa, false para visitante
-]]
-function ClientNetwork.RefereeEvent:ChangeTeamName(nome: string, ehHome: boolean)
-	REFEREE_EVENT:FireServer({
-		action = "TOGGLE_NAME",
-		teamName = nome,
-		isHome = ehHome
-	})
+--- Spawn de bola pelo árbitro
+function ClientNetwork.RefereeEvent:RefSpawn(isHome: boolean, position: Vector3)
+	REFEREE_EVENT:FireServer({ action = "REF_SPAWN_BALL", isHome = isHome, position = position })
 end
 
---// ============================================================================
---// SETOR: àrbitro - Spawn de Bola
---// ============================================================================
-
---[[
-	Spawn de bola para cobrança (free throw).
-	
-	@param ehHome boolean - Time que vai cobrar
-	@param posicao Vector3 - Posição do spawn
-]]
-function ClientNetwork.RefereeEvent:RefSpawn(ehHome: boolean, posicao: Vector3)
-	REFEREE_EVENT:FireServer({
-		action = "REF_SPAWN_BALL",
-		isHome = ehHome,
-		position = posicao
-	})
+--- Penalty spawn
+function ClientNetwork.RefereeEvent:RefPenalty(isHome: boolean, isHomeGLT: boolean)
+	REFEREE_EVENT:FireServer({ action = "REF_PENALTY", isHome = isHome, isHomeGLT = isHomeGLT })
 end
 
---[[
-	Spawn de bola para cobrança de pênalti.
-	
-	@param ehHome boolean - Time que vai cobrar
-	@param ehHomeGLT boolean - Se o gol é do lado Home
-]]
-function ClientNetwork.RefereeEvent:RefPenalty(ehHome: boolean, ehHomeGLT: boolean)
-	REFEREE_EVENT:FireServer({
-		action = "REF_PENALTY",
-		isHome = ehHome,
-		isHomeGLT = ehHomeGLT
-	})
-end
-
---[[
-	Remove todas as bolas do campo.
-]]
+--- Remove todas as bolas
 function ClientNetwork.RefereeEvent:RemoveBalls()
-	REFEREE_EVENT:FireServer({
-		action = "REMOVE_BALLS"
-	})
+	REFEREE_EVENT:FireServer({ action = "REMOVE_BALLS" })
 end
 
---// ============================================================================
---// SETOR: àrbitro - Controle de Partida
---// ============================================================================
-
---[[
-	Inicia uma nova partida de liga.
-]]
+--- Inicia partida
 function ClientNetwork.RefereeEvent:BeginLeague()
-	REFEREE_EVENT:FireServer({
-		action = "BEGIN_LEAGUE"
-	})
+	REFEREE_EVENT:FireServer({ action = "BEGIN_LEAGUE" })
 end
 
---[[
-	Reseta a partida atual.
-]]
+--- Reseta partida
 function ClientNetwork.RefereeEvent:ResetMatch()
-	REFEREE_EVENT:FireServer({
-		action = "RESET_MATCH"
-	})
+	REFEREE_EVENT:FireServer({ action = "RESET_MATCH" })
 end
 
---[[
-	Pausa a partida.
-]]
+--- Pausa partida
 function ClientNetwork.RefereeEvent:PauseMatch()
-	REFEREE_EVENT:FireServer({
-		action = "PAUSE_MATCH"
-	})
+	REFEREE_EVENT:FireServer({ action = "PAUSE_MATCH" })
 end
 
---[[
-	Retoma a partida pausada.
-]]
+--- Resume partida
 function ClientNetwork.RefereeEvent:ResumeMatch()
-	REFEREE_EVENT:FireServer({
-		action = "RESUME_MATCH"
-	})
+	REFEREE_EVENT:FireServer({ action = "RESUME_MATCH" })
 end
 
 --// ============================================================================
---// SETOR: Roubada de Bola
+--// SETOR: TACKLING
 --// ============================================================================
 
---[[
-	Executa uma tentativa de roubada de bola.
-	Usa RemoteFunction para garantir resposta do servidor.
-]]
+--- Executa tackle
 function ClientNetwork.TacklingFunction:Tackle()
 	TACKLING_FUNCTION:InvokeServer()
 end
 
 return ClientNetwork
-

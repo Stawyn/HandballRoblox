@@ -3,10 +3,10 @@
 -- Move KeyCodes up/down for your preferred hint display order.
 
 -- Tips:
---   â€¢ Top of sort order = displayed at top
---   â€¢ Bottom of sort order = displayed at bottom
---   â€¢ InputActions can override sorting by having a CustomOrder attribute (number).
---   â€¢ If a KeyCode is not listed, it will sort last (math.huge).
+--   • Top of sort order = displayed at top
+--   • Bottom of sort order = displayed at bottom
+--   • InputActions can override sorting by having a CustomOrder attribute (number).
+--   • If a KeyCode is not listed, it will sort last (math.huge).
 
 local Sorting = {}
 

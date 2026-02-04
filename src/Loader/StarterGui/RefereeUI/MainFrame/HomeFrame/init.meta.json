@@ -1,0 +1,13 @@
+{
+  "className": "Frame",
+  "properties": {
+    "AnchorPoint": [0.5, 0.5],
+    "Attributes": {
+      "AutoScaleDefaultsApplied": true
+    },
+    "BackgroundTransparency": 1,
+    "BorderSizePixel": 0,
+    "Position": [[0.0, 76.0], [0.0, 82.0]],
+    "Size": [[0.3417, 0.0], [0.6833, 0.0]]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "className": "VectorForce",
+  "properties": {
+    "ApplyAtCenterOfMass": true,
+    "Enabled": false,
+    "Force": [0, 0, 0],
+    "RelativeTo": "World"
+  }
+}

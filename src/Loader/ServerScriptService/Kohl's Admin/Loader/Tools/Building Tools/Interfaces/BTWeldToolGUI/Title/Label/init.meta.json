@@ -1,0 +1,21 @@
+{
+  "className": "TextLabel",
+  "properties": {
+    "BackgroundTransparency": 1,
+    "BorderSizePixel": 0,
+    "FontFace": {
+      "family": "rbxasset://fonts/families/Arial.json",
+      "weight": "Bold",
+      "style": "Normal",
+      "cachedFaceId": null
+    },
+    "Position": [[0.0, 10.0], [0.0, 1.0]],
+    "Size": [[1.0, -10.0], [1.0, 0.0]],
+    "Text": "WELD TOOL",
+    "TextColor3": [1, 1, 1],
+    "TextSize": 10,
+    "TextStrokeTransparency": 0,
+    "TextWrapped": true,
+    "TextXAlignment": "Left"
+  }
+}

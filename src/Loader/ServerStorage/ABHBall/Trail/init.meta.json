@@ -1,0 +1,62 @@
+{
+  "className": "Trail",
+  "properties": {
+    "FaceCamera": true,
+    "LightEmission": 1,
+    "TextureLength": 0.25,
+    "Transparency": [{
+        "time": 0.0,
+        "value": 0.0,
+        "envelope": 0.0
+      }, {
+        "time": 0.1,
+        "value": 0.106,
+        "envelope": 0.0
+      }, {
+        "time": 0.1998,
+        "value": 0.2063,
+        "envelope": 0.0
+      }, {
+        "time": 0.3,
+        "value": 0.306,
+        "envelope": 0.0
+      }, {
+        "time": 0.3995,
+        "value": 0.4063,
+        "envelope": 0.0
+      }, {
+        "time": 0.5,
+        "value": 0.506,
+        "envelope": 0.0
+      }, {
+        "time": 0.6,
+        "value": 0.606,
+        "envelope": 0.0
+      }, {
+        "time": 0.7003,
+        "value": 0.7062,
+        "envelope": 0.0
+      }, {
+        "time": 0.8,
+        "value": 0.794,
+        "envelope": 0.0
+      }, {
+        "time": 0.9,
+        "value": 0.894,
+        "envelope": 0.0
+      }, {
+        "time": 1.0,
+        "value": 1.0,
+        "envelope": 0.0
+      }],
+    "WidthScale": [{
+        "time": 0.0,
+        "value": 0.35,
+        "envelope": 0.0
+      }, {
+        "time": 1.0,
+        "value": 0.35,
+        "envelope": 0.0
+      }]
+  }
+}

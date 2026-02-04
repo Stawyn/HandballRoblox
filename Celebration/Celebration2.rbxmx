@@ -1,0 +1,5746 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+	<Meta name="ExplicitAutoJoints">true</Meta>
+	<External>null</External>
+	<External>nil</External>
+	<Item class="Folder" referent="RBX5690E9A2BFA84E70B2F6CDA514F3151F">
+		<Properties>
+			<BinaryString name="AttributesSerialize"></BinaryString>
+			<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+			<bool name="DefinesCapabilities">false</bool>
+			<string name="Name">Auto</string>
+			<int64 name="SourceAssetId">-1</int64>
+			<BinaryString name="Tags"></BinaryString>
+		</Properties>
+		<Item class="Script" referent="RBXF2AF5D74E7DC42C1A9E3F2C84CE18D70">
+			<Properties>
+				<ProtectedString name="Source"><![CDATA[local Players = game:GetService("Players")
+local ServerStorage = game:GetService("ServerStorage")
+local Debris = game:GetService("Debris")
+local ServerScriptService = game:GetService("ServerScriptService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local BallService = require(ServerScriptService:WaitForChild("Services"):WaitForChild("BallService"))
+local Maid = require(ReplicatedStorage:WaitForChild("Utils"):WaitForChild("Maid"))
+local AutoService = require(ServerScriptService:WaitForChild("Services"):WaitForChild("AutoService"))
+
+local SETPIECE_PART = ServerStorage:WaitForChild("GameSourceServer"):WaitForChild("SetPiece")
+local GOALKICK_PART = ServerStorage:WaitForChild("GameSourceServer"):WaitForChild("GoalKick")
+local OUT_FOLDER = workspace:WaitForChild("Core"):WaitForChild("Outs")
+local BALLS_FOLDER = workspace:WaitForChild("Core"):WaitForChild("Balls")
+local SETPIECES_FOLDER = workspace:WaitForChild("Core"):WaitForChild("SetPieces")
+local KEEPER_MAX_BOUNDARY = 314.15
+local GOALKICK_ZAXIS = 266.5
+local CORNER_BASE_XAXIS = 196.25
+local CORNER_BASE_ZAXIS = 311
+local THROW_IN_BASE_XAXIS = 195
+
+local outOfBoundsMaid = Maid.new()
+
+
+function GetHomePosesion(playerOnBall: Player?, lastPlayerOnBall: Player?): boolean | nil
+	if playerOnBall then
+		if playerOnBall.Team.Name:find("Home") then
+			-- Home last Posession
+			return true
+		else
+			-- Away last Posession
+			return false
+		end
+	elseif not playerOnBall and lastPlayerOnBall then
+		if lastPlayerOnBall.Team.Name:find("Home") then
+			-- Home last Posession
+			return true
+		else
+			-- Away last Posession
+			return false
+		end
+	end
+
+	return nil -- Weird case where the ball is out but nobody owned?
+end
+
+function GoalKickSetPiece(isHomePosession: boolean)	
+	AutoService:AssignGoalKick(isHomePosession)
+end
+
+function CornerKickSetPiece(isHomePosession: boolean, fromRight: boolean)
+	local clone = SETPIECE_PART:Clone()
+	clone.BrickColor = isHomePosession and BrickColor.new("Really blue") or BrickColor.new("Really red")
+	clone.Position = if isHomePosession then
+		Vector3.new(fromRight and CORNER_BASE_XAXIS or -CORNER_BASE_XAXIS, 0.5, -CORNER_BASE_ZAXIS)
+		else
+		Vector3.new(fromRight and CORNER_BASE_XAXIS or -CORNER_BASE_XAXIS, 0.5, CORNER_BASE_ZAXIS)
+	
+	AutoService:AlertSetPiece(isHomePosession, clone, "Corner kick")
+end
+
+function ThrowInSetPiece(isHomePosession: boolean, fromRight: boolean, zAxis: number)
+	local clone = SETPIECE_PART:Clone()
+	clone.BrickColor = isHomePosession and BrickColor.new("Really blue") or BrickColor.new("Really red")
+	clone.Position = Vector3.new(fromRight and THROW_IN_BASE_XAXIS or -THROW_IN_BASE_XAXIS, 0.5, zAxis)
+	AutoService:AlertSetPiece(isHomePosession, clone, "Throw in")
+end
+
+function HandleBallOutOfBounds(ballInstance: BasePart)
+	ballInstance.CanTouch = false
+	ballInstance.Highlight.FillColor = Color3.new(255, 0, 0)
+	ballInstance.Highlight.FillTransparency = 0
+	Debris:AddItem(ballInstance, 3)
+end
+
+function HandleTouchedPart(partThatTouched: BasePart)
+	local touchedAxisZ = partThatTouched.Position.Z
+	local touchedAxisX = partThatTouched.Position.X
+	local ballModel = BallService:GetBall(partThatTouched)
+	if not ballModel then return end
+
+	local playerOnBall: Player? = ballModel.Data.PlayerOnBall.Value
+	local lastPlayerOnBall: Player? = ballModel.Data.LastPlayerOnBall.Value
+
+	local isHomePosession = GetHomePosesion(playerOnBall, lastPlayerOnBall)
+	if isHomePosession == nil then return end
+	
+	-- Disable ball interaction
+	ballModel:RemoveWeld()
+	ballModel.Instance.CanTouch = false
+	HandleBallOutOfBounds(ballModel.Instance)
+
+	if touchedAxisZ >= KEEPER_MAX_BOUNDARY then
+		-- Home area
+		if isHomePosession then
+			-- AWAY CK
+			CornerKickSetPiece(false, touchedAxisX > 0)
+		else
+			-- HOME GK
+			GoalKickSetPiece(true)
+		end
+	elseif touchedAxisZ <= -KEEPER_MAX_BOUNDARY then
+		-- Away area
+		if isHomePosession then
+			-- AWAY GK
+			GoalKickSetPiece(false)
+		else
+			-- HOME CK
+			CornerKickSetPiece(true, touchedAxisX > 0)
+		end
+	else
+		-- Throw in
+		ThrowInSetPiece(not isHomePosession, touchedAxisX > 0, touchedAxisZ)
+	end
+end
+
+for _, part: BasePart in pairs(OUT_FOLDER:GetChildren()) do
+	if not part:IsA("BasePart") then continue end
+	outOfBoundsMaid[part] = {}
+	outOfBoundsMaid[part]["maid"] = Maid.new()
+	outOfBoundsMaid[part]["saved"] = Maid.new()
+
+	local function GiveOutOfBoundsMaid()
+		outOfBoundsMaid[part]["maid"]:Destroy()
+		outOfBoundsMaid[part]["saved"]:Destroy()
+
+		local gotIt = false
+
+		outOfBoundsMaid[part]["maid"]:GiveTask(part.Touched:Connect(function(partThatTouched: BasePart)
+			if not partThatTouched:IsDescendantOf(BALLS_FOLDER) then return end
+			local ball = BallService:GetBall(partThatTouched)
+
+
+			outOfBoundsMaid[part]["saved"]:GiveTask(ball.Data.PlayerOnBall:GetPropertyChangedSignal("Value"):Connect(function()
+				-- if ball.Data.PlayerOnBall.Value == nil then return end
+				gotIt = true
+				GiveOutOfBoundsMaid()
+				return
+			end))
+
+			task.wait(0.175)
+			if gotIt then return end
+			task.spawn(HandleTouchedPart, partThatTouched)
+			GiveOutOfBoundsMaid()
+		end))
+	end
+
+	GiveOutOfBoundsMaid()
+end]]></ProtectedString>
+				<bool name="Disabled">false</bool>
+				<Content name="LinkedSource"><null></null></Content>
+				<token name="RunContext">0</token>
+				<string name="ScriptGuid">{072E2472-0B2C-45DE-A997-2986C5307421}</string>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">OutHandler</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+		</Item>
+		<Item class="Script" referent="RBX0FFF0BF63E33437FBAF857BA0225AE2B">
+			<Properties>
+				<ProtectedString name="Source"><![CDATA[local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local GAMECONFIG = ReplicatedStorage:WaitForChild("Config")
+local AutoService = require(ServerScriptService:WaitForChild("Services"):WaitForChild("AutoService"))
+
+local SetPiece = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("SetPiece")
+local Keeper = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Keeper")
+
+local MINIMUM_PLAYERS = GAMECONFIG.MINIMUM_PLAYERS.Value
+
+function OnPlayerAdded(player: Player)
+	if #Players:GetPlayers() >= MINIMUM_PLAYERS then
+		AutoService:StartIntermission()
+	else
+		AutoService:StopIntermission()
+	end
+
+	player:GetAttributeChangedSignal("SetPiece"):Connect(function()
+		local character = player.Character or player.CharacterAdded:Wait()
+		local humanoid = character:WaitForChild("Humanoid")
+		if player:GetAttribute("SetPiece") == true then
+			humanoid.WalkSpeed = 0
+		else
+			humanoid.WalkSpeed = 20
+		end
+	end)
+end
+
+SetPiece.OnServerEvent:Connect(function(player: Player)
+	AutoService:AssignSetPiece(player)
+end)
+Keeper.OnServerEvent:Connect(function(player: Player, argument)
+	if argument == "Keeper" then
+		AutoService:AssignPlayerToGK(player)
+	end
+end)
+
+Players.PlayerAdded:Connect(OnPlayerAdded)
+for i, v in pairs(Players:GetPlayers()) do
+	task.spawn(OnPlayerAdded, v)
+end]]></ProtectedString>
+				<bool name="Disabled">false</bool>
+				<Content name="LinkedSource"><null></null></Content>
+				<token name="RunContext">0</token>
+				<string name="ScriptGuid">{8BFBC9C5-1C31-4329-B233-435345BFCB80}</string>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">Main</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+		</Item>
+		<Item class="Script" referent="RBX5636160FB7A44142A3B58D6FF0197802">
+			<Properties>
+				<ProtectedString name="Source"><![CDATA[
+local AutoService = require(game:GetService("ServerScriptService"):WaitForChild("Services"):WaitForChild("AutoService"))
+
+local POSITIONS_FOLDER = workspace:WaitForChild("Core"):WaitForChild("Positions")
+
+for _, part: BasePart in pairs(POSITIONS_FOLDER:GetDescendants()) do
+	if not part:IsA("BasePart") then continue end
+	local teamName = part.Parent.Name
+	part.Touched:Connect(function(partThatTouched)
+		local player = game:GetService("Players"):GetPlayerFromCharacter(partThatTouched.Parent)
+		if not player then return end
+		if not player.Team.Name:find(teamName) then return end
+		-- if AutoService:GetPlayerPosition(player) then return end		
+		
+		AutoService:AssignPlayerToPosition(player, part.Name)
+	end)
+end]]></ProtectedString>
+				<bool name="Disabled">false</bool>
+				<Content name="LinkedSource"><null></null></Content>
+				<token name="RunContext">0</token>
+				<string name="ScriptGuid">{F9DE9B7E-5BF6-4E1D-95B3-8263AE6DB44E}</string>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">PositionHandler</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+		</Item>
+		<Item class="Script" referent="RBX24451DF70D314E68909D57012F5E063F">
+			<Properties>
+				<ProtectedString name="Source"><![CDATA[local AutoService = require(game:GetService("ServerScriptService"):WaitForChild("Services"):WaitForChild("AutoService"))
+local SetPieceHandler = require(game:GetService("ServerScriptService"):WaitForChild("Services"):WaitForChild("AutoService"):WaitForChild("SetPieceHandler"))
+local bindableGameEvents = game:GetService("ReplicatedStorage"):WaitForChild("Bindable"):WaitForChild("GameEvents")
+
+bindableGameEvents.Event:Connect(function(argument: string, ...)
+	if argument == "Offside" then
+		local homePosession: boolean, position: number = ...
+		AutoService:HandleOffside(homePosession, position)
+	elseif argument == "Last Attack" then
+		AutoService:HandleLastAttack()
+	elseif argument == "Flick Spam" then
+		local playerOnBall: Player, ballPosition: Vector3, ballPart = ...
+		AutoService:HandleFlickspam(playerOnBall, ballPosition, ballPart)
+	elseif argument == "Goalkeeper Possession" then
+		local part: BasePart, existingBall: BasePart = ...
+		SetPieceHandler(part, nil, existingBall)
+	end
+end)]]></ProtectedString>
+				<bool name="Disabled">false</bool>
+				<Content name="LinkedSource"><null></null></Content>
+				<token name="RunContext">0</token>
+				<string name="ScriptGuid">{F318FA4A-F55E-403E-A185-259261F301A0}</string>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">GameEvents</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+		</Item>
+		<Item class="Folder" referent="RBX769C1A165C8F4304957D265A24185F93">
+			<Properties>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">Services</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+			<Item class="ModuleScript" referent="RBX7C981F44ECA346ED959EFDF7407C933A">
+				<Properties>
+					<Content name="LinkedSource"><null></null></Content>
+					<ProtectedString name="Source"><![CDATA[return {
+	["AGK"] = Vector3.new(0, 2.5, -298.816),
+	["HGK"] = Vector3.new(0, 2.5, 298.816),
+	["APK"] = Vector3.new(0, 2.5, -251.126),
+	["HPK"] = Vector3.new(0, 2.5, 251.126),
+	["KO"] = Vector3.new(0, 2.5, 0),
+	["ALCK"] = Vector3.new(-198, 2.5, -313.004),
+	["HLCK"] = Vector3.new(-198, 2.5, 313.004),
+	["ARCK"] = Vector3.new(198, 2.5, -313.004),
+	["HRCK"] = Vector3.new(198, 2.5, 313.004),
+}]]></ProtectedString>
+					<string name="ScriptGuid">{094F65A0-9F25-4A9C-B3D3-B0D2238694A9}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">SetPiecePositions</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBXC822B56663C34086BFCD3026EAE5675C">
+				<Properties>
+					<Content name="LinkedSource"><null></null></Content>
+					<ProtectedString name="Source"><![CDATA[local Players = game:GetService("Players")
+local Debris = game:GetService("Debris")
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local BallService = require(ServerScriptService:WaitForChild("Services"):WaitForChild("BallService"))
+
+local HOME_PART = script.Home
+local AWAY_PART = script.Away
+
+
+function handleTouched(part: BasePart)
+	local cooldown = {}
+
+	local function HandleCooldown(player: Player)
+		if cooldown[player] then return end
+		cooldown[player] = true
+		task.wait(.125)
+		cooldown[player] = nil
+	end
+	
+	part.Touched:Connect(function(partThatTouched: BasePart)
+		local player = Players:GetPlayerFromCharacter(partThatTouched.Parent)
+		if not player then return end
+		if player:GetAttribute("SetPiece") == true then return end
+
+		if cooldown[player] then return end
+		task.spawn(HandleCooldown, player)
+
+		local teamName = player.Team.Name
+
+		if teamName:find("Home") and part.BrickColor == BrickColor.new("Really red") then
+			local character = player.Character
+			if not character then return end
+			local humanoidRootPart: BasePart = character:FindFirstChild("HumanoidRootPart")
+			if not humanoidRootPart then return end
+			humanoidRootPart.CFrame += Vector3.new(0, 0, 25)
+		elseif teamName:find("Away") and part.BrickColor == BrickColor.new("Really blue") then
+			local character = player.Character
+			if not character then return end
+			local humanoidRootPart: BasePart = character:FindFirstChild("HumanoidRootPart")
+			if not humanoidRootPart then return end
+			humanoidRootPart.CFrame += Vector3.new(0, 0, -25)
+		end
+	end)
+end
+
+return function ()
+	task.spawn(function()
+		local homePart = HOME_PART:Clone()
+		local awayPart = AWAY_PART:Clone()
+
+		task.spawn(handleTouched, homePart)
+		task.spawn(handleTouched, awayPart)
+
+		homePart.Parent = workspace
+		awayPart.Parent = workspace
+
+		Debris:AddItem(homePart, 12)
+		Debris:AddItem(awayPart, 12)
+		task.wait(12)
+		BallService:RemoveAllBallsSetPiece()
+	end)
+end]]></ProtectedString>
+					<string name="ScriptGuid">{51D9D140-CD44-4C80-8D3A-FF15B99BBC8D}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">KickOffPart</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+				<Item class="UnionOperation" referent="RBX0E58D06C0C30465CA33A5F56776536E6">
+					<Properties>
+						<Content name="AssetId"><url>https://www.roblox.com//asset/?id=14767996689</url></Content>
+						<BinaryString name="ChildData"></BinaryString>
+						<SharedString name="ChildData2">yuZpQdnvvUBOTYh1jqZ2cA==</SharedString>
+						<int name="ComponentIndex">-1</int>
+						<token name="FormFactor">3</token>
+						<Vector3 name="InitialSize">
+							<X>100.100044</X>
+							<Y>400</Y>
+							<Z>372.003723</Z>
+						</Vector3>
+						<BinaryString name="MeshData"></BinaryString>
+						<SharedString name="MeshData2">yuZpQdnvvUBOTYh1jqZ2cA==</SharedString>
+						<bool name="OffCentered">false</bool>
+						<BinaryString name="PhysicsData"></BinaryString>
+						<token name="RenderFidelity">1</token>
+						<float name="SmoothingAngle">0</float>
+						<NetAssetRef name="SolidMeshHolder">yuZpQdnvvUBOTYh1jqZ2cA==</NetAssetRef>
+						<bool name="UsePartColor">false</bool>
+						<SharedString name="AeroMeshData">yuZpQdnvvUBOTYh1jqZ2cA==</SharedString>
+						<token name="FluidFidelityInternal">0</token>
+						<bool name="InertiaMigrated">true</bool>
+						<SharedString name="PhysicalConfigData">EpKVge+FlzQGQ8IrnMuMRg==</SharedString>
+						<Vector3 name="UnscaledCofm">
+							<X>-2.73299884e-05</X>
+							<Y>0.000592835364</Y>
+							<Z>-25.9232178</Z>
+						</Vector3>
+						<Vector3 name="UnscaledVolInertiaDiags">
+							<X>2.80833589e+11</X>
+							<Y>1.2367097e+11</Y>
+							<Z>1.78824495e+11</Z>
+						</Vector3>
+						<Vector3 name="UnscaledVolInertiaOffDiags">
+							<X>81601.3594</X>
+							<Y>58807.0469</Y>
+							<Z>-516096</Z>
+						</Vector3>
+						<float name="UnscaledVolume">12684803</float>
+						<bool name="Anchored">true</bool>
+						<bool name="AudioCanCollide">true</bool>
+						<float name="BackParamA">-0.5</float>
+						<float name="BackParamB">0.5</float>
+						<token name="BackSurface">0</token>
+						<token name="BackSurfaceInput">0</token>
+						<float name="BottomParamA">-0.5</float>
+						<float name="BottomParamB">0.5</float>
+						<token name="BottomSurface">0</token>
+						<token name="BottomSurfaceInput">0</token>
+						<CoordinateFrame name="CFrame">
+							<X>0</X>
+							<Y>0.920136631</Y>
+							<Z>129.001862</Z>
+							<R00>0</R00>
+							<R01>-1</R01>
+							<R02>0</R02>
+							<R10>-0.99999994</R10>
+							<R11>0</R11>
+							<R12>0</R12>
+							<R20>0</R20>
+							<R21>0</R21>
+							<R22>-1</R22>
+						</CoordinateFrame>
+						<bool name="CanCollide">false</bool>
+						<bool name="CanQuery">true</bool>
+						<bool name="CanTouch">true</bool>
+						<bool name="CastShadow">true</bool>
+						<string name="CollisionGroup">Default</string>
+						<int name="CollisionGroupId">0</int>
+						<Color3uint8 name="Color3uint8">4278190335</Color3uint8>
+						<PhysicalProperties name="CustomPhysicalProperties">
+							<CustomPhysics>false</CustomPhysics>
+						</PhysicalProperties>
+						<bool name="EnableFluidForces">true</bool>
+						<float name="FrontParamA">-0.5</float>
+						<float name="FrontParamB">0.5</float>
+						<token name="FrontSurface">0</token>
+						<token name="FrontSurfaceInput">0</token>
+						<float name="LeftParamA">-0.5</float>
+						<float name="LeftParamB">0.5</float>
+						<token name="LeftSurface">0</token>
+						<token name="LeftSurfaceInput">0</token>
+						<bool name="Locked">false</bool>
+						<bool name="Massless">false</bool>
+						<token name="Material">1584</token>
+						<string name="MaterialVariantSerialized"></string>
+						<CoordinateFrame name="PivotOffset">
+							<X>0</X>
+							<Y>0</Y>
+							<Z>0</Z>
+							<R00>1</R00>
+							<R01>0</R01>
+							<R02>0</R02>
+							<R10>0</R10>
+							<R11>1</R11>
+							<R12>0</R12>
+							<R20>0</R20>
+							<R21>0</R21>
+							<R22>1</R22>
+						</CoordinateFrame>
+						<float name="Reflectance">0</float>
+						<float name="RightParamA">-0.5</float>
+						<float name="RightParamB">0.5</float>
+						<token name="RightSurface">0</token>
+						<token name="RightSurfaceInput">0</token>
+						<int name="RootPriority">0</int>
+						<Vector3 name="RotVelocity">
+							<X>0</X>
+							<Y>0</Y>
+							<Z>0</Z>
+						</Vector3>
+						<float name="TopParamA">-0.5</float>
+						<float name="TopParamB">0.5</float>
+						<token name="TopSurface">0</token>
+						<token name="TopSurfaceInput">0</token>
+						<float name="Transparency">0</float>
+						<Vector3 name="Velocity">
+							<X>0</X>
+							<Y>0</Y>
+							<Z>0</Z>
+						</Vector3>
+						<Vector3 name="size">
+							<X>1</X>
+							<Y>400</Y>
+							<Z>372.003723</Z>
+						</Vector3>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<string name="Name">Home</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+					</Properties>
+				</Item>
+				<Item class="UnionOperation" referent="RBX86713C3FC6D94AC8A88DA859DB299474">
+					<Properties>
+						<Content name="AssetId"><url>https://www.roblox.com//asset/?id=14767996633</url></Content>
+						<BinaryString name="ChildData"></BinaryString>
+						<SharedString name="ChildData2">yuZpQdnvvUBOTYh1jqZ2cA==</SharedString>
+						<int name="ComponentIndex">-1</int>
+						<token name="FormFactor">3</token>
+						<Vector3 name="InitialSize">
+							<X>400</X>
+							<Y>100.100067</Y>
+							<Z>372.003906</Z>
+						</Vector3>
+						<BinaryString name="MeshData"></BinaryString>
+						<SharedString name="MeshData2">yuZpQdnvvUBOTYh1jqZ2cA==</SharedString>
+						<bool name="OffCentered">false</bool>
+						<BinaryString name="PhysicsData"></BinaryString>
+						<token name="RenderFidelity">1</token>
+						<float name="SmoothingAngle">0</float>
+						<NetAssetRef name="SolidMeshHolder">yuZpQdnvvUBOTYh1jqZ2cA==</NetAssetRef>
+						<bool name="UsePartColor">false</bool>
+						<SharedString name="AeroMeshData">yuZpQdnvvUBOTYh1jqZ2cA==</SharedString>
+						<token name="FluidFidelityInternal">0</token>
+						<bool name="InertiaMigrated">true</bool>
+						<SharedString name="PhysicalConfigData">SK5IZXyxMPr00S5jpj8eLg==</SharedString>
+						<Vector3 name="UnscaledCofm">
+							<X>0.00410738774</X>
+							<Y>-0.000270656019</Y>
+							<Z>25.9071751</Z>
+						</Vector3>
+						<Vector3 name="UnscaledVolInertiaDiags">
+							<X>1.23653259e+11</X>
+							<Y>2.80793842e+11</Y>
+							<Z>1.7879466e+11</Z>
+						</Vector3>
+						<Vector3 name="UnscaledVolInertiaOffDiags">
+							<X>-28852.9844</X>
+							<Y>1730560</Y>
+							<Z>14068.3008</Z>
+						</Vector3>
+						<float name="UnscaledVolume">12683488</float>
+						<bool name="Anchored">true</bool>
+						<bool name="AudioCanCollide">true</bool>
+						<float name="BackParamA">-0.5</float>
+						<float name="BackParamB">0.5</float>
+						<token name="BackSurface">0</token>
+						<token name="BackSurfaceInput">0</token>
+						<float name="BottomParamA">-0.5</float>
+						<float name="BottomParamB">0.5</float>
+						<token name="BottomSurface">0</token>
+						<token name="BottomSurfaceInput">0</token>
+						<CoordinateFrame name="CFrame">
+							<X>3.40943006e-06</X>
+							<Y>0.920034945</Y>
+							<Z>-129.001953</Z>
+							<R00>-1</R00>
+							<R01>0</R01>
+							<R02>-1.50995803e-07</R02>
+							<R10>0</R10>
+							<R11>1</R11>
+							<R12>0</R12>
+							<R20>1.50995803e-07</R20>
+							<R21>0</R21>
+							<R22>-1</R22>
+						</CoordinateFrame>
+						<bool name="CanCollide">false</bool>
+						<bool name="CanQuery">true</bool>
+						<bool name="CanTouch">true</bool>
+						<bool name="CastShadow">true</bool>
+						<string name="CollisionGroup">Default</string>
+						<int name="CollisionGroupId">0</int>
+						<Color3uint8 name="Color3uint8">4294901760</Color3uint8>
+						<PhysicalProperties name="CustomPhysicalProperties">
+							<CustomPhysics>false</CustomPhysics>
+						</PhysicalProperties>
+						<bool name="EnableFluidForces">true</bool>
+						<float name="FrontParamA">-0.5</float>
+						<float name="FrontParamB">0.5</float>
+						<token name="FrontSurface">0</token>
+						<token name="FrontSurfaceInput">0</token>
+						<float name="LeftParamA">-0.5</float>
+						<float name="LeftParamB">0.5</float>
+						<token name="LeftSurface">0</token>
+						<token name="LeftSurfaceInput">0</token>
+						<bool name="Locked">false</bool>
+						<bool name="Massless">false</bool>
+						<token name="Material">1584</token>
+						<string name="MaterialVariantSerialized"></string>
+						<CoordinateFrame name="PivotOffset">
+							<X>0</X>
+							<Y>0</Y>
+							<Z>0</Z>
+							<R00>1</R00>
+							<R01>0</R01>
+							<R02>0</R02>
+							<R10>0</R10>
+							<R11>1</R11>
+							<R12>0</R12>
+							<R20>0</R20>
+							<R21>0</R21>
+							<R22>1</R22>
+						</CoordinateFrame>
+						<float name="Reflectance">0</float>
+						<float name="RightParamA">-0.5</float>
+						<float name="RightParamB">0.5</float>
+						<token name="RightSurface">0</token>
+						<token name="RightSurfaceInput">0</token>
+						<int name="RootPriority">0</int>
+						<Vector3 name="RotVelocity">
+							<X>0</X>
+							<Y>0</Y>
+							<Z>0</Z>
+						</Vector3>
+						<float name="TopParamA">-0.5</float>
+						<float name="TopParamB">0.5</float>
+						<token name="TopSurface">0</token>
+						<token name="TopSurfaceInput">0</token>
+						<float name="Transparency">0</float>
+						<Vector3 name="Velocity">
+							<X>0</X>
+							<Y>0</Y>
+							<Z>0</Z>
+						</Vector3>
+						<Vector3 name="size">
+							<X>400</X>
+							<Y>1</Y>
+							<Z>372.003906</Z>
+						</Vector3>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<string name="Name">Away</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+					</Properties>
+				</Item>
+			</Item>
+		</Item>
+	</Item>
+	<Item class="Folder" referent="RBX7F843614D1354ECCAD0CFD091557C114">
+		<Properties>
+			<BinaryString name="AttributesSerialize"></BinaryString>
+			<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+			<bool name="DefinesCapabilities">false</bool>
+			<string name="Name">Events</string>
+			<int64 name="SourceAssetId">-1</int64>
+			<BinaryString name="Tags"></BinaryString>
+		</Properties>
+		<Item class="Script" referent="RBX517CD48F2DF14AC89F7163CAE25C3B43">
+			<Properties>
+				<ProtectedString name="Source"><![CDATA[type StatsProperties = {
+	scorer: string,
+	assist: string?,
+	team: string,
+	ownGoal: boolean,
+	gltName: string
+}
+
+local HTTPService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
+local Players = game:GetService("Players")
+local SoundService = game:GetService("SoundService")
+
+local AutoService = require(ServerScriptService:WaitForChild("Services"):WaitForChild("AutoService"))
+local SoundModuleService = require(ServerScriptService:WaitForChild("Services"):WaitForChild("SoundModuleService"))
+
+local statsFolder: Folder = workspace:WaitForChild("Core"):WaitForChild("Stats")
+local statEvent: BindableEvent = ServerScriptService:WaitForChild("ServerRemote"):WaitForChild("StatEvent")
+local scoredEvent: RemoteEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Scored")
+
+function HandleCoins(scorer: Player?, assister: Player?, og: boolean)
+	if og then return end
+	local presumedTeam = scorer.Team.Name:find("Home") and "Home" or "Away"
+	
+	if scorer then
+		local coins = scorer:WaitForChild("leaderstats"):WaitForChild("Coins")
+		coins.Value += 100
+	end
+	if assister and assister.Team.Name:find(presumedTeam) then
+		local coins = assister:WaitForChild("leaderstats"):WaitForChild("Coins")
+		coins.Value += 50
+	end
+end
+
+function CreateStats(properties: StatsProperties)
+	if properties.gltName == "Home" then
+		statsFolder.Scores.Away.Value += 1
+	else
+		statsFolder.Scores.Home.Value += 1
+	end
+	
+	if statsFolder.Match.Value == "Training" then return end
+	
+	task.spawn(HandleCoins, properties.scorer, properties.assist, properties.ownGoal)
+	SoundModuleService:Play(SoundService.Crowd.Goal)
+	scoredEvent:FireAllClients(properties.scorer, properties.assist, properties.ownGoal)
+	AutoService:HandleGoal(properties.gltName)
+end
+
+function RefereeGoal(team: "Home" | "Away")
+	local index: number = #statsFolder[team.." Scorers"]:GetChildren() +1
+	local template: StringValue = script.Template:Clone()
+	template.Value = statsFolder.Time.Value
+	template.Name = "["..index.."]".." Goal added by the referee - "..template.Value
+	
+	template.Parent = statsFolder[team.." Scorers"]
+end
+
+function UpdateHomeIndex()
+	for index: number, value: StringValue in pairs(statsFolder["Home Scorers"]:GetChildren()) do
+		local currentName = value.Name
+		local newIndex = "[" .. index .. "]"
+		local updatedName, count = currentName:gsub("%[%d+%]", newIndex)
+		value.Name = updatedName
+	end
+end
+
+function UpdateAwayIndex()
+	for index: number, value: StringValue in pairs(statsFolder["Away Scorers"]:GetChildren()) do
+		local currentName = value.Name
+		local newIndex = "[" .. index .. "]"
+		local updatedName, count = currentName:gsub("%[%d+%]", newIndex)
+		value.Name = updatedName
+	end
+end
+
+statsFolder["Home Scorers"].ChildRemoved:Connect(function(child)
+	UpdateHomeIndex()
+end)
+statsFolder["Home Scorers"].ChildAdded:Connect(function(child)
+	UpdateHomeIndex()
+end)
+statsFolder["Away Scorers"].ChildRemoved:Connect(function(child)
+	UpdateAwayIndex()
+end)
+statsFolder["Away Scorers"].ChildAdded:Connect(function(child)
+	UpdateAwayIndex()
+end)
+
+statEvent.Event:Connect(function(event, ...)
+	if event == "Goal" then
+		local goalProperties: StatsProperties = ...
+		CreateStats(goalProperties)
+	elseif event == "Add Goal" then
+		local team: string = ...
+		RefereeGoal(team)
+	end
+end)]]></ProtectedString>
+				<bool name="Disabled">false</bool>
+				<Content name="LinkedSource"><null></null></Content>
+				<token name="RunContext">0</token>
+				<string name="ScriptGuid">{886096D0-6DC0-4E2A-92B0-635D5FF05D2C}</string>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">StatEvents</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+			<Item class="StringValue" referent="RBXB9E09FC6E70C4C5EA0E585E9396307DF">
+				<Properties>
+					<string name="Value">Scorer</string>
+					<BinaryString name="AttributesSerialize">AwAAAAYAAABBc3Npc3QCAAAAAAcAAABPd25Hb2FsAwAGAAAAU2NvcmVyAgAAAAA=</BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">Template</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+		</Item>
+		<Item class="Script" referent="RBXDAA1FD6F7B2249BFA31D2BBE50B5FFC4">
+			<Properties>
+				<ProtectedString name="Source"><![CDATA[type SpawnState = {
+	state: boolean
+}
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local BallService = require(ServerScriptService:WaitForChild("Services"):WaitForChild("BallService"))
+local ballEvent: RemoteEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("BallEvent")
+
+ballEvent.OnServerEvent:Connect(function(player: Player, event: string, ...)
+	if event == "Spawn" then
+		if not player.Backpack:FindFirstChild("SpawnTool") and not player.Character:FindFirstChild("SpawnTool") then return end
+		local properties = ...
+		if properties.state == true then 
+			BallService.new(player)
+		else
+			BallService:Clear()
+		end	
+	elseif event == "Shoot" then
+		local properties = ...
+		if player.Character and player.Character.HumanoidRootPart:FindFirstChild("BallWeld") then
+			local ballInstance: MeshPart = player.Character.HumanoidRootPart.BallWeld.Part0
+			BallService:Kick(player, ballInstance, properties)
+		end
+	end
+end)]]></ProtectedString>
+				<bool name="Disabled">false</bool>
+				<Content name="LinkedSource"><null></null></Content>
+				<token name="RunContext">0</token>
+				<string name="ScriptGuid">{84579E81-24B7-411E-92FB-0941253F1F78}</string>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">BallEvents</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+		</Item>
+	</Item>
+	<Item class="Folder" referent="RBX84E26DB5DC264E4C90FD8E1A60D2AE57">
+		<Properties>
+			<BinaryString name="AttributesSerialize"></BinaryString>
+			<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+			<bool name="DefinesCapabilities">false</bool>
+			<string name="Name">Scripts</string>
+			<int64 name="SourceAssetId">-1</int64>
+			<BinaryString name="Tags"></BinaryString>
+		</Properties>
+		<Item class="Folder" referent="RBXC466BCC377CB492D9E1A3E61F390526F">
+			<Properties>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">Environment</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+			<Item class="Script" referent="RBXBC17A1ACA6F64EE0B611B26CD53DEEF7">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[local Players = game:GetService("Players")
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
+
+local CrowdModule = require(script.CrowdModule)
+
+CrowdModule:ResetCrowdTexture()
+CrowdModule:SetBasePercentageAndPopulate(0)
+
+
+local matchStats: Folder = workspace:WaitForChild("Core"):WaitForChild("Stats")
+local matchValue: StringValue = matchStats:WaitForChild("Match")
+
+local MatchValues = {
+	"Training", 
+	"Scrim", 
+	"Friendly", 
+	"League", 
+	"Cup", 
+	"Important Match", 
+	"Final Match",
+}
+
+local ratingIncrement = 2 / (#MatchValues - 1)
+for i, value in ipairs(MatchValues) do
+	local rating = (i - 1) * ratingIncrement 
+	MatchValues[i] = {value = value, rating = rating}
+end
+
+function GetRatingForMatchValue(matchValue)
+	for _, entry in ipairs(MatchValues) do
+		if entry.value == matchValue then
+			return entry.rating
+		end
+	end
+	return 1
+end
+
+function UpdateSound()
+	local volume = (CrowdModule:GetPercentage() / 100) * 2
+	for _, sound: Sound in pairs(SoundService:WaitForChild("Crowd"):GetChildren()) do
+		if not sound:IsA("Sound") then continue end
+		if sound.Name == "Crowd" then
+			if not sound.IsPlaying and matchValue.Value ~= "Training" then sound:Play() end
+			TweenService:Create(sound, TweenInfo.new(30), { Volume = volume }):Play()
+		else
+			TweenService:Create(sound, TweenInfo.new(30), { Volume = volume/1.25 }):Play()
+		end
+	end
+end
+
+function UpdateCrowdBasedOnPlayers()
+	local MaximumAmmount = Players.MaxPlayers
+	local CurrentMatchRating = 1
+	
+	local CurrentPercentage = #Players:GetPlayers() / MaximumAmmount
+	CurrentPercentage *= CurrentMatchRating
+	CurrentPercentage = math.clamp(CurrentPercentage, 0, 100)
+	
+	CrowdModule:SetBasePercentageAndPopulate(CurrentPercentage)
+	UpdateSound()
+end
+
+for i, v in pairs(Players:GetPlayers()) do
+	task.spawn(UpdateCrowdBasedOnPlayers, v)
+end
+Players.PlayerAdded:Connect(UpdateCrowdBasedOnPlayers)
+Players.PlayerRemoving:Connect(UpdateCrowdBasedOnPlayers)
+matchStats:WaitForChild("Match"):GetPropertyChangedSignal("Value"):Connect(UpdateCrowdBasedOnPlayers)]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{4644CFD6-EE97-4EB6-B5AB-C302280BC663}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">Dynamic Crowd</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+				<Item class="ModuleScript" referent="RBX69F8CE9DDEA94F5FA52E97E3A1FDE0D4">
+					<Properties>
+						<Content name="LinkedSource"><null></null></Content>
+						<ProtectedString name="Source"><![CDATA[local SortStandsByFieldProximity = require(script.SortStandsByFieldProximity)
+local ShuffleTable = require(script.ShuffleTable)
+local CrowdAssets = require(script.CrowdAssets)
+local ResetCrowdMapping = require(script.ResetCrowdMapping)
+local CrowdModule = {}
+
+local INITIALIZED = false
+local BASE_PERCENTAGE = 0
+local FIELD_POSITION = Vector3.new(0,0,0)
+
+function CrowdModule:ResetCrowdTexture()
+	for index: number, stand: BasePart in pairs(workspace:GetDescendants()) do
+		if not stand:IsA("BasePart") then continue end
+		if not stand.Name:find("Seat") then continue end
+		if not stand:FindFirstChild("SeatChange") then continue end
+
+		for i, v in pairs(stand:GetChildren()) do
+			if v.Name ~= "Crowd" then continue end
+			local CrowdAssetsTable = CrowdAssets[9]
+			local CurrentTexture = v.Texture
+			v.Texture = CrowdAssetsTable[math.random(1, #CrowdAssetsTable)]
+		end
+	end
+end
+
+function CrowdModule:GetCapacityAndStands(): {["Capacity"]: number, ["Stands"]: {[number]: BasePart}}
+	local Capacity = 0
+	local Stands = {}
+
+	for index: number, stand: BasePart in pairs(workspace:GetDescendants()) do
+		if not stand:IsA("BasePart") then continue end
+		if not stand.Name:find("Seat") then continue end
+		if not stand:FindFirstChild("SeatChange") then continue end
+
+		local XSize = stand.Size.X
+		local ZSide = stand.Size.Z
+		local FullStandSize = XSize > ZSide and XSize or ZSide
+		local SeatSize = stand.SeatChange.StudsPerTileU
+
+		local StandQuantity = FullStandSize / SeatSize
+		Capacity += StandQuantity
+		table.insert(Stands, stand)
+	end
+
+	return {["Capacity"] = math.ceil(Capacity), ["Stands"] = Stands}
+end
+
+function CrowdModule:GetPartialCapacity(CurrentStands: {BasePart}): {["Capacity"]: number}
+	local Capacity = 0
+	
+	for index, stand in pairs(CurrentStands) do
+		local XSize = stand.Size.X
+		local ZSide = stand.Size.Z
+		local FullStandSize = XSize > ZSide and XSize or ZSide
+		local SeatSize = stand.SeatChange.StudsPerTileU
+
+		local StandQuantity = FullStandSize / SeatSize
+		
+		local PresumedTexture
+		for _, nestedTable in pairs(CrowdAssets) do
+			if not table.find(nestedTable, stand.Crowd.Texture) then continue end
+			PresumedTexture = table.find(nestedTable, stand.Crowd.Texture)
+		end
+		
+		Capacity += (StandQuantity / PresumedTexture)
+	end
+	
+	return math.ceil(Capacity)
+end
+
+function CrowdModule:PopulateStadium()
+	ResetCrowdMapping()
+	local CapacityAndStands = CrowdModule:GetCapacityAndStands()
+	local SortedStandsByProximity = SortStandsByFieldProximity(CapacityAndStands["Stands"], FIELD_POSITION)
+
+	local PopulateStandsTo = #CapacityAndStands["Stands"] * (BASE_PERCENTAGE / 100)
+	local NewStadiumCapacity = math.ceil(CapacityAndStands["Capacity"]) * (BASE_PERCENTAGE / 100)
+	local MinShufflePercentage = 100 * (math.random(40, 80) / 100)
+	local ActualPercentage = #CapacityAndStands["Stands"] * (MinShufflePercentage / 100)
+
+	if not INITIALIZED then
+		INITIALIZED = true
+		local ToNotShuffle = {}
+		for index, stand in pairs(SortedStandsByProximity) do
+			if index >= ActualPercentage then
+				table.insert(ToNotShuffle, stand)
+				SortedStandsByProximity[index] = nil
+			end
+		end
+		ShuffleTable(SortedStandsByProximity)
+		for _, stand in pairs(ToNotShuffle) do
+			table.insert(SortedStandsByProximity, stand)
+		end
+	end
+
+	for index = #SortedStandsByProximity, 1, -1 do
+		local stand = SortedStandsByProximity[index]
+
+		for _, v in pairs(stand:GetChildren()) do
+			if v.Name == "Crowd" then
+				v.Transparency = index > PopulateStandsTo and 1 or 0
+			end
+		end
+		
+		if index > PopulateStandsTo then
+			table.remove(SortedStandsByProximity, index)
+		end
+	end
+
+	local Difference = math.ceil(CapacityAndStands["Capacity"] - NewStadiumCapacity)
+	
+	for _, stand in pairs(SortedStandsByProximity) do
+		if Difference < 1 then
+			break
+		end
+
+		stand.Crowd.Transparency = 0
+		local CrowdSize = stand.Crowd.StudsPerTileU
+		local OnePerson = CrowdSize / 9
+
+		local AmmountToDecrease = math.min(math.ceil(math.random(OnePerson, CrowdSize) / 4), 9)
+		AmmountToDecrease = math.max(AmmountToDecrease, 1)
+		local CrowdAssetsTable = CrowdAssets[AmmountToDecrease]
+
+		for i, v in pairs(stand:GetChildren()) do
+			if v.Name ~= "Crowd" then continue end
+			local CurrentCrowdTexture = v.Texture
+			local PresumedTexture
+			for index, nestedTable in pairs(CrowdAssets) do
+				if not table.find(nestedTable, CurrentCrowdTexture) then continue end
+				PresumedTexture = table.find(nestedTable, CurrentCrowdTexture)
+			end
+			local TextureIndex = PresumedTexture or math.random(1, #CrowdAssetsTable)
+			v.Texture = CrowdAssetsTable[TextureIndex]
+		end
+
+		Difference -= AmmountToDecrease
+	end
+	
+end
+
+function CrowdModule:SetCrowdBaseAttendance(givenAttendance: number)
+	assert(typeof(givenAttendance) == "number", "Expected number, got " .. typeof(givenAttendance))
+	assert(givenAttendance >= 0, "Attendance count must be a non-negative number")
+	local MaximumCapacity = CrowdModule:GetCapacityAndStands()["Capacity"]
+	local AttendancePercentage = math.ceil((givenAttendance/MaximumCapacity) * 100)
+	
+	BASE_PERCENTAGE = AttendancePercentage
+end
+
+function CrowdModule:SetFieldPosition(position: Vector3)
+	assert(typeof(position) == "Vector3", "Expected Vector3, got " .. typeof(position))
+	FIELD_POSITION = position
+end
+
+function CrowdModule:SetBasePercentage(percentage: number)
+	assert(typeof(percentage) == "number", "Expected number, got " .. typeof(percentage))
+	assert(percentage <= 100 and percentage >= 0, "Percentage must be between 0 and 100")
+	BASE_PERCENTAGE = percentage
+end
+
+function CrowdModule:SetBasePercentageAndPopulate(percentage: number)
+	CrowdModule:SetBasePercentage(percentage)
+	CrowdModule:PopulateStadium()
+end
+
+function CrowdModule:GetPercentage(): number
+	return BASE_PERCENTAGE
+end
+
+return CrowdModule
+]]></ProtectedString>
+						<string name="ScriptGuid">{195ED9D6-E2BA-4A0D-BB9C-47DEA634D39A}</string>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<string name="Name">CrowdModule</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+					</Properties>
+					<Item class="ModuleScript" referent="RBXED020B8D42AB4529AF91CE0C0A0F0AC2">
+						<Properties>
+							<Content name="LinkedSource"><null></null></Content>
+							<ProtectedString name="Source"><![CDATA[return function (Stands: {[number]: BasePart}, FieldPosition: number): {[number]: BasePart}
+	table.sort(Stands, function(a, b)
+		local firstMagnitude = (a.Position - FieldPosition).Magnitude
+		local secondMagnitude = (b.Position - FieldPosition).Magnitude
+		
+		return firstMagnitude < secondMagnitude
+	end)
+	
+	return Stands
+end]]></ProtectedString>
+							<string name="ScriptGuid">{CEB6F474-8D55-44BB-A059-B5C9ECED9A32}</string>
+							<BinaryString name="AttributesSerialize"></BinaryString>
+							<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+							<bool name="DefinesCapabilities">false</bool>
+							<string name="Name">SortStandsByFieldProximity</string>
+							<int64 name="SourceAssetId">-1</int64>
+							<BinaryString name="Tags"></BinaryString>
+						</Properties>
+					</Item>
+					<Item class="ModuleScript" referent="RBX9C769E10FFB14EE89C5B81BC9729F888">
+						<Properties>
+							<Content name="LinkedSource"><null></null></Content>
+							<ProtectedString name="Source"><![CDATA[return function(t)
+	local j, temp
+	for i = #t, 1, -1 do
+		j = math.random(i)
+		temp = t[i]
+		t[i] = t[j]
+		t[j] = temp
+	end
+end]]></ProtectedString>
+							<string name="ScriptGuid">{B658282D-6941-44BB-AFB6-43444D593E3A}</string>
+							<BinaryString name="AttributesSerialize"></BinaryString>
+							<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+							<bool name="DefinesCapabilities">false</bool>
+							<string name="Name">ShuffleTable</string>
+							<int64 name="SourceAssetId">-1</int64>
+							<BinaryString name="Tags"></BinaryString>
+						</Properties>
+					</Item>
+					<Item class="ModuleScript" referent="RBXF343CFAB7DAA4CE6A54E78F16BA9B7CB">
+						<Properties>
+							<Content name="LinkedSource"><null></null></Content>
+							<ProtectedString name="Source"><![CDATA[return {
+	[9] = {
+		"http://www.roblox.com/asset/?id=4622942172";
+		"http://www.roblox.com/asset/?id=4622943001";
+		"http://www.roblox.com/asset/?id=4622945077";
+		"http://www.roblox.com/asset/?id=4622945876";
+		"http://www.roblox.com/asset/?id=4622946369";
+		"http://www.roblox.com/asset/?id=4622946876"
+	},
+	[8] = {
+		"rbxassetid://14424281250",
+		"rbxassetid://14424283404",
+		"rbxassetid://14424285348",
+		"rbxassetid://14424287423",
+		"rbxassetid://14424289480",
+		"rbxassetid://14424291975"
+	},
+	[7] = {
+		"rbxassetid://14424281505",
+		"rbxassetid://14424283644",
+		"rbxassetid://14424285630",
+		"rbxassetid://14424287693",
+		"rbxassetid://14424289706",
+		"rbxassetid://14424292204"
+	},
+	[6] = {
+		"rbxassetid://14424281711",
+		"rbxassetid://14424283924",
+		"rbxassetid://14424285916",
+		"rbxassetid://14424287910",
+		"rbxassetid://14424290068",
+		"rbxassetid://14424292446"
+	},
+	[5] = {
+		"rbxassetid://14424282077",
+		"rbxassetid://14424284172",
+		"rbxassetid://14424286175",
+		"rbxassetid://14424288212",
+		"rbxassetid://14424290420",
+		"rbxassetid://14424292704"
+	},
+	[4] = {
+		"rbxassetid://14424282313",
+		"rbxassetid://14424284387",
+		"rbxassetid://14424286465",
+		"rbxassetid://14424288475",
+		"rbxassetid://14424290701",
+		"rbxassetid://14424293014"
+	},
+	[3] = {
+		"rbxassetid://14424282537",
+		"rbxassetid://14424284598",
+		"rbxassetid://14424286698",
+		"rbxassetid://14424288762",
+		"rbxassetid://14424291114",
+		"rbxassetid://14424293365"
+	},
+	[2] = {
+		"rbxassetid://14424282825",
+		"rbxassetid://14424284893",
+		"rbxassetid://14424286971",
+		"rbxassetid://14424288972",
+		"rbxassetid://14424291416",
+		"rbxassetid://14424293567"
+	},
+	[1] = {
+		"rbxassetid://14424283159",
+		"rbxassetid://14424285137",
+		"rbxassetid://14424287209",
+		"rbxassetid://14424289273",
+		"rbxassetid://14424291649",
+		"rbxassetid://14424293790"
+	}
+}]]></ProtectedString>
+							<string name="ScriptGuid">{A9BC64A8-8FF0-47DC-9576-5F7AA6B187AA}</string>
+							<BinaryString name="AttributesSerialize"></BinaryString>
+							<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+							<bool name="DefinesCapabilities">false</bool>
+							<string name="Name">CrowdAssets</string>
+							<int64 name="SourceAssetId">-1</int64>
+							<BinaryString name="Tags"></BinaryString>
+						</Properties>
+					</Item>
+					<Item class="ModuleScript" referent="RBX2D4E6FAF8D0042D499FA6DDA9A14ACA1">
+						<Properties>
+							<Content name="LinkedSource"><null></null></Content>
+							<ProtectedString name="Source"><![CDATA[local CrowdAssets = require(script.Parent.CrowdAssets)
+
+return function()
+	for index: number, stand: BasePart in pairs(workspace:GetDescendants()) do
+		if not stand:IsA("BasePart") then continue end
+		if not stand.Name:find("Seat") then continue end
+		if not stand:FindFirstChild("SeatChange") then continue end
+
+		for i, v in pairs(stand:GetChildren()) do
+			if v.Name ~= "Crowd" then continue end
+			local CrowdAssetsTable = CrowdAssets[9]
+			v.Texture = CrowdAssetsTable[math.random(1, #CrowdAssetsTable)]
+		end
+	end
+end]]></ProtectedString>
+							<string name="ScriptGuid">{3ACA77EB-35A1-4B18-95BB-9775F606300E}</string>
+							<BinaryString name="AttributesSerialize"></BinaryString>
+							<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+							<bool name="DefinesCapabilities">false</bool>
+							<string name="Name">ResetCrowdMapping</string>
+							<int64 name="SourceAssetId">-1</int64>
+							<BinaryString name="Tags"></BinaryString>
+						</Properties>
+					</Item>
+				</Item>
+			</Item>
+		</Item>
+		<Item class="Folder" referent="RBX77E79C678EFA440D8290A6E08058BDA1">
+			<Properties>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">Player Management</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+			<Item class="Script" referent="RBXFE33F15DFAF640ECA37CF8A0A52EEEB9">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[local LocalizationService = game:GetService("LocalizationService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local HTTPService = game:GetService("HttpService")
+local DataStoreService = game:GetService("DataStoreService")
+
+local CoinsData = DataStoreService:GetDataStore("CoinsData")
+local CountryModule = require(script.CountryAPI)
+
+local pingEvent: RemoteFunction = ReplicatedStorage:WaitForChild("RemoteFunctions"):WaitForChild("Ping")
+
+function OnPlayerJoined(player: Player)
+	local playerCoins = nil
+	player:SetAttribute("SetPiece", false)
+
+	local leaderstats: Folder = Instance.new("Folder")
+	leaderstats.Name = "leaderstats"
+	leaderstats.Parent = player
+
+	local pingValue: NumberValue = Instance.new("NumberValue")
+	pingValue.Name = "Ping"
+	pingValue.Parent = leaderstats
+	
+	local Coins: NumberValue = Instance.new("NumberValue")
+	Coins.Name = "Coins"
+	Coins.Parent = leaderstats
+
+	local country: StringValue = Instance.new("StringValue")
+	country.Name = "Country"
+	country.Parent = leaderstats
+
+	local team: StringValue = Instance.new("StringValue")
+	team.Name = "Team"
+	team.Value = "F/A"
+	team.Parent = leaderstats
+
+	local suspended: StringValue = Instance.new("BoolValue")
+	suspended.Name = "Suspended"
+	suspended.Value = false
+	suspended.Parent = leaderstats
+
+	local staff: BoolValue = Instance.new("BoolValue")
+	staff.Name = "Staff"
+	staff.Value = false
+	staff.Parent = leaderstats
+	
+	country.Value = LocalizationService:GetCountryRegionForPlayerAsync(player)
+	
+	local success, err = pcall(function()
+		playerCoins = CoinsData:GetAsync(player.UserId)
+	end)
+	
+	if success then
+		Coins.Value = playerCoins or 100
+	elseif not success and err then
+		warn("Failed to get "..player.Name.." coins. \ncause: "..tostring(err))
+	end
+	
+	while player:IsDescendantOf(Players) do
+		local lastTime: number = os.clock()
+		local sucess, received = pcall(function()
+			return pingEvent:InvokeClient(player, "Ping")
+		end)
+		local calculations: number = os.clock() - lastTime
+		local difference: number = math.floor(calculations * 1e3)
+		pingValue.Value = difference
+		task.wait(1)
+	end
+end
+
+Players.PlayerRemoving:Connect(function(player)
+	local coinsValue = player.leaderstats.Coins.Value
+	local success, err = pcall(function()
+		CoinsData:SetAsync(player.UserId, coinsValue)
+	end)
+	
+	if success then
+		print(tostring(coinsValue).." has been saved to "..player.Name)
+	elseif not success and err then
+		warn("Failed to save "..player.Name.." coins, \ncause: "..tostring(err))
+	end
+end)
+
+for _, player: Player in pairs(Players:GetPlayers()) do
+	task.spawn(OnPlayerJoined, player)
+end
+
+Players.PlayerAdded:Connect(OnPlayerJoined)]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{3F35065E-781B-47C4-87DD-90BC047E3EEF}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">Player</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+				<Item class="ModuleScript" referent="RBX1AAB5FE157C04014B968AF1A36635BD0">
+					<Properties>
+						<Content name="LinkedSource"><null></null></Content>
+						<ProtectedString name="Source"><![CDATA[local Region = {
+	TJ = {
+		Emoji = "🇹🇯",
+		Name = "Tajikistan"
+	},
+	HR = {
+		Emoji = "🇭🇷",
+		Name = "Croatia"
+	},
+	KE = {
+		Emoji = "🇰🇪",
+		Name = "Kenya"
+	},
+	CR = {
+		Emoji = "🇨🇷",
+		Name = "CostaRica"
+	},
+	BR = {
+		Emoji = "🇧🇷",
+		Name = "Brazil"
+	},
+	SB = {
+		Emoji = "🇸🇧",
+		Name = "SolomonIslands"
+	},
+	BJ = {
+		Emoji = "🇧🇯",
+		Name = "Benin"
+	},
+	TR = {
+		Emoji = "🇹🇷",
+		Name = "Turkey"
+	},
+	PR = {
+		Emoji = "🇵🇷",
+		Name = "PuertoRico"
+	},
+	UZ = {
+		Emoji = "🇺🇿",
+		Name = "Uzbekistan"
+	},
+	MR = {
+		Emoji = "🇲🇷",
+		Name = "Mauritania"
+	},
+	MM = {
+		Emoji = "🇲🇲",
+		Name = "Myanmar(Burma)"
+	},
+	OM = {
+		Emoji = "🇴🇲",
+		Name = "Oman"
+	},
+	PM = {
+		Emoji = "🇵🇲",
+		Name = "St.Pierre & Miquelon"
+	},
+	HU = {
+		Emoji = "🇭🇺",
+		Name = "Hungary"
+	},
+	SM = {
+		Emoji = "🇸🇲",
+		Name = "SanMarino"
+	},
+	TM = {
+		Emoji = "🇹🇲",
+		Name = "Turkmenistan"
+	},
+	PE = {
+		Emoji = "🇵🇪",
+		Name = "Peru"
+	},
+	ZM = {
+		Emoji = "🇿🇲",
+		Name = "Zambia"
+	},
+	AU = {
+		Emoji = "🇦🇺",
+		Name = "Australia"
+	},
+	GE = {
+		Emoji = "🇬🇪",
+		Name = "Georgia"
+	},
+	IE = {
+		Emoji = "🇮🇪",
+		Name = "Ireland"
+	},
+	JE = {
+		Emoji = "🇯🇪",
+		Name = "Jersey"
+	},
+	AM = {
+		Emoji = "🇦🇲",
+		Name = "Armenia"
+	},
+	BM = {
+		Emoji = "🇧🇲",
+		Name = "Bermuda"
+	},
+	NE = {
+		Emoji = "🇳🇪",
+		Name = "Niger"
+	},
+	HM = {
+		Emoji = "🇭🇲",
+		Name = "Heard & McDonaldIslands"
+	},
+	IM = {
+		Emoji = "🇮🇲",
+		Name = "IsleofMan"
+	},
+	ER = {
+		Emoji = "🇪🇷",
+		Name = "Eritrea"
+	},
+	BZ = {
+		Emoji = "🇧🇿",
+		Name = "Belize"
+	},
+	RU = {
+		Emoji = "🇷🇺",
+		Name = "Russia"
+	},
+	NL = {
+		Emoji = "🇳🇱",
+		Name = "Netherlands"
+	},
+	ML = {
+		Emoji = "🇲🇱",
+		Name = "Mali"
+	},
+	MU = {
+		Emoji = "🇲🇺",
+		Name = "Mauritius"
+	},
+	TL = {
+		Emoji = "🇹🇱",
+		Name = "Timor-Leste"
+	},
+	IN = {
+		Emoji = "🇮🇳",
+		Name = "India"
+	},
+	UA = {
+		Emoji = "🇺🇦",
+		Name = "Ukraine"
+	},
+	TD = {
+		Emoji = "🇹🇩",
+		Name = "Chad"
+	},
+	SD = {
+		Emoji = "🇸🇩",
+		Name = "Sudan"
+	},
+	AT = {
+		Emoji = "🇦🇹",
+		Name = "Austria"
+	},
+	TT = {
+		Emoji = "🇹🇹",
+		Name = "Trinidad & Tobago"
+	},
+	ST = {
+		Emoji = "🇸🇹",
+		Name = "SãoTomé & Príncipe"
+	},
+	MD = {
+		Emoji = "🇲🇩",
+		Name = "Moldova"
+	},
+	AL = {
+		Emoji = "🇦🇱",
+		Name = "Albania"
+	},
+	CM = {
+		Emoji = "🇨🇲",
+		Name = "Cameroon"
+	},
+	BB = {
+		Emoji = "🇧🇧",
+		Name = "Barbados"
+	},
+	BD = {
+		Emoji = "🇧🇩",
+		Name = "Bangladesh"
+	},
+	MZ = {
+		Emoji = "🇲🇿",
+		Name = "Mozambique"
+	},
+	AD = {
+		Emoji = "🇦🇩",
+		Name = "Andorra"
+	},
+	PT = {
+		Emoji = "🇵🇹",
+		Name = "Portugal"
+	},
+	IL = {
+		Emoji = "🇮🇱",
+		Name = "Israel"
+	},
+	ME = {
+		Emoji = "🇲🇪",
+		Name = "Montenegro"
+	},
+	SZ = {
+		Emoji = "🇸🇿",
+		Name = "Swaziland"
+	},
+	VG = {
+		Emoji = "🇻🇬",
+		Name = "BritishVirginIslands"
+	},
+	KR = {
+		Emoji = "🇰🇷",
+		Name = "SouthKorea"
+	},
+	LU = {
+		Emoji = "🇱🇺",
+		Name = "Luxembourg"
+	},
+	MO = {
+		Emoji = "🇲🇴",
+		Name = "MacauSARChina"
+	},
+	NO = {
+		Emoji = "🇳🇴",
+		Name = "Norway"
+	},
+	SO = {
+		Emoji = "🇸🇴",
+		Name = "Somalia"
+	},
+	DM = {
+		Emoji = "🇩🇲",
+		Name = "Dominica"
+	},
+	DO = {
+		Emoji = "🇩🇴",
+		Name = "DominicanRepublic"
+	},
+	VE = {
+		Emoji = "🇻🇪",
+		Name = "Venezuela"
+	},
+	GL = {
+		Emoji = "🇬🇱",
+		Name = "Greenland"
+	},
+	BW = {
+		Emoji = "🇧🇼",
+		Name = "Botswana"
+	},
+	GG = {
+		Emoji = "🇬🇬",
+		Name = "Guernsey"
+	},
+	MG = {
+		Emoji = "🇲🇬",
+		Name = "Madagascar"
+	},
+	NG = {
+		Emoji = "🇳🇬",
+		Name = "Nigeria"
+	},
+	KG = {
+		Emoji = "🇰🇬",
+		Name = "Kyrgyzstan"
+	},
+	FO = {
+		Emoji = "🇫🇴",
+		Name = "FaroeIslands"
+	},
+	MK = {
+		Emoji = "🇲🇰",
+		Name = "Macedonia"
+	},
+	EG = {
+		Emoji = "🇪🇬",
+		Name = "Egypt"
+	},
+	CW = {
+		Emoji = "🇨🇼",
+		Name = "Curaçao"
+	},
+	CV = {
+		Emoji = "🇨🇻",
+		Name = "CapeVerde"
+	},
+	TN = {
+		Emoji = "🇹🇳",
+		Name = "Tunisia"
+	},
+	AX = {
+		Emoji = "🇦🇽",
+		Name = "ÅlandIslands"
+	},
+	TF = {
+		Emoji = "🇹🇫",
+		Name = "FrenchSouthernTerritories"
+	},
+	GR = {
+		Emoji = "🇬🇷",
+		Name = "Greece"
+	},
+	TH = {
+		Emoji = "🇹🇭",
+		Name = "Thailand"
+	},
+	RS = {
+		Emoji = "🇷🇸",
+		Name = "Serbia"
+	},
+	TV = {
+		Emoji = "🇹🇻",
+		Name = "Tuvalu"
+	},
+	SV = {
+		Emoji = "🇸🇻",
+		Name = "ElSalvador"
+	},
+	BO = {
+		Emoji = "🇧🇴",
+		Name = "Bolivia"
+	},
+	CN = {
+		Emoji = "🇨🇳",
+		Name = "China"
+	},
+	BN = {
+		Emoji = "🇧🇳",
+		Name = "Brunei"
+	},
+	UG = {
+		Emoji = "🇺🇬",
+		Name = "Uganda"
+	},
+	JO = {
+		Emoji = "🇯🇴",
+		Name = "Jordan"
+	},
+	GU = {
+		Emoji = "🇬🇺",
+		Name = "Guam"
+	},
+	LB = {
+		Emoji = "🇱🇧",
+		Name = "Lebanon"
+	},
+	AW = {
+		Emoji = "🇦🇼",
+		Name = "Aruba"
+	},
+	BF = {
+		Emoji = "🇧🇫",
+		Name = "BurkinaFaso"
+	},
+	RW = {
+		Emoji = "🇷🇼",
+		Name = "Rwanda"
+	},
+	KW = {
+		Emoji = "🇰🇼",
+		Name = "Kuwait"
+	},
+	SG = {
+		Emoji = "🇸🇬",
+		Name = "Singapore"
+	},
+	AF = {
+		Emoji = "🇦🇫",
+		Name = "Afghanistan"
+	},
+	YE = {
+		Emoji = "🇾🇪",
+		Name = "Yemen"
+	},
+	CG = {
+		Emoji = "🇨🇬",
+		Name = "Congo-Brazzaville"
+	},
+	CK = {
+		Emoji = "🇨🇰",
+		Name = "CookIslands"
+	},
+	IQ = {
+		Emoji = "🇮🇶",
+		Name = "Iraq"
+	},
+	FJ = {
+		Emoji = "🇫🇯",
+		Name = "Fiji"
+	},
+	PF = {
+		Emoji = "🇵🇫",
+		Name = "FrenchPolynesia"
+	},
+	SN = {
+		Emoji = "🇸🇳",
+		Name = "Senegal"
+	},
+	BV = {
+		Emoji = "🇧🇻",
+		Name = "BouvetIsland"
+	},
+	DE = {
+		Emoji = "🇩🇪",
+		Name = "Germany"
+	},
+	NI = {
+		Emoji = "🇳🇮",
+		Name = "Nicaragua"
+	},
+	QA = {
+		Emoji = "🇶🇦",
+		Name = "Qatar"
+	},
+	ZA = {
+		Emoji = "🇿🇦",
+		Name = "SouthAfrica"
+	},
+	CY = {
+		Emoji = "🇨🇾",
+		Name = "Cyprus"
+	},
+	MF = {
+		Emoji = "🇲🇫",
+		Name = "St.Martin"
+	},
+	CI = {
+		Emoji = "🇨🇮",
+		Name = "Côted’Ivoire"
+	},
+	NA = {
+		Emoji = "🇳🇦",
+		Name = "Namibia"
+	},
+	NU = {
+		Emoji = "🇳🇺",
+		Name = "Niue"
+	},
+	IO = {
+		Emoji = "🇮🇴",
+		Name = "BritishIndianOceanTerritory"
+	},
+	KZ = {
+		Emoji = "🇰🇿",
+		Name = "Kazakhstan"
+	},
+	LY = {
+		Emoji = "🇱🇾",
+		Name = "Libya"
+	},
+	MY = {
+		Emoji = "🇲🇾",
+		Name = "Malaysia"
+	},
+	BY = {
+		Emoji = "🇧🇾",
+		Name = "Belarus"
+	},
+	RO = {
+		Emoji = "🇷🇴",
+		Name = "Romania"
+	},
+	VC = {
+		Emoji = "🇻🇨",
+		Name = "St.Vincent & Grenadines"
+	},
+	BQ = {
+		Emoji = "🇧🇶",
+		Name = "CaribbeanNetherlands"
+	},
+	DJ = {
+		Emoji = "🇩🇯",
+		Name = "Djibouti"
+	},
+	TO = {
+		Emoji = "🇹🇴",
+		Name = "Tonga"
+	},
+	AI = {
+		Emoji = "🇦🇮",
+		Name = "Anguilla"
+	},
+	CZ = {
+		Emoji = "🇨🇿",
+		Name = "Czechia"
+	},
+	MT = {
+		Emoji = "🇲🇹",
+		Name = "Malta"
+	},
+	GA = {
+		Emoji = "🇬🇦",
+		Name = "Gabon"
+	},
+	FR = {
+		Emoji = "🇫🇷",
+		Name = "France"
+	},
+	TZ = {
+		Emoji = "🇹🇿",
+		Name = "Tanzania"
+	},
+	UM = {
+		Emoji = "🇺🇲",
+		Name = "U.S.OutlyingIslands"
+	},
+	FI = {
+		Emoji = "🇫🇮",
+		Name = "Finland"
+	},
+	LI = {
+		Emoji = "🇱🇮",
+		Name = "Liechtenstein"
+	},
+	JP = {
+		Emoji = "🇯🇵",
+		Name = "Japan"
+	},
+	PW = {
+		Emoji = "🇵🇼",
+		Name = "Palau"
+	},
+	PH = {
+		Emoji = "🇵🇭",
+		Name = "Philippines"
+	},
+	MQ = {
+		Emoji = "🇲🇶",
+		Name = "Martinique"
+	},
+	GW = {
+		Emoji = "🇬🇼",
+		Name = "Guinea-Bissau"
+	},
+	TG = {
+		Emoji = "🇹🇬",
+		Name = "Togo"
+	},
+	NF = {
+		Emoji = "🇳🇫",
+		Name = "NorfolkIsland"
+	},
+	JM = {
+		Emoji = "🇯🇲",
+		Name = "Jamaica"
+	},
+	HT = {
+		Emoji = "🇭🇹",
+		Name = "Haiti"
+	},
+	GT = {
+		Emoji = "🇬🇹",
+		Name = "Guatemala"
+	},
+	LV = {
+		Emoji = "🇱🇻",
+		Name = "Latvia"
+	},
+	ZW = {
+		Emoji = "🇿🇼",
+		Name = "Zimbabwe"
+	},
+	CU = {
+		Emoji = "🇨🇺",
+		Name = "Cuba"
+	},
+	LR = {
+		Emoji = "🇱🇷",
+		Name = "Liberia"
+	},
+	SH = {
+		Emoji = "🇸🇭",
+		Name = "St.Helena"
+	},
+	KI = {
+		Emoji = "🇰🇮",
+		Name = "Kiribati"
+	},
+	RE = {
+		Emoji = "🇷🇪",
+		Name = "Réunion"
+	},
+	CX = {
+		Emoji = "🇨🇽",
+		Name = "ChristmasIsland"
+	},
+	WF = {
+		Emoji = "🇼🇫",
+		Name = "Wallis & Futuna"
+	},
+	SA = {
+		Emoji = "🇸🇦",
+		Name = "SaudiArabia"
+	},
+	HN = {
+		Emoji = "🇭🇳",
+		Name = "Honduras"
+	},
+	VN = {
+		Emoji = "🇻🇳",
+		Name = "Vietnam"
+	},
+	CH = {
+		Emoji = "🇨🇭",
+		Name = "Switzerland"
+	},
+	BT = {
+		Emoji = "🇧🇹",
+		Name = "Bhutan"
+	},
+	EH = {
+		Emoji = "🇪🇭",
+		Name = "WesternSahara"
+	},
+	TW = {
+		Emoji = "🇹🇼",
+		Name = "Taiwan"
+	},
+	GD = {
+		Emoji = "🇬🇩",
+		Name = "Grenada"
+	},
+	KH = {
+		Emoji = "🇰🇭",
+		Name = "Cambodia"
+	},
+	BA = {
+		Emoji = "🇧🇦",
+		Name = "Bosnia & Herzegovina"
+	},
+	VA = {
+		Emoji = "🇻🇦",
+		Name = "VaticanCity"
+	},
+	MA = {
+		Emoji = "🇲🇦",
+		Name = "Morocco"
+	},
+	GP = {
+		Emoji = "🇬🇵",
+		Name = "Guadeloupe"
+	},
+	BL = {
+		Emoji = "🇧🇱",
+		Name = "St.Barthélemy"
+	},
+	GY = {
+		Emoji = "🇬🇾",
+		Name = "Guyana"
+	},
+	TK = {
+		Emoji = "🇹🇰",
+		Name = "Tokelau"
+	},
+	MH = {
+		Emoji = "🇲🇭",
+		Name = "MarshallIslands"
+	},
+	SR = {
+		Emoji = "🇸🇷",
+		Name = "Suriname"
+	},
+	AE = {
+		Emoji = "🇦🇪",
+		Name = "UnitedArabEmirates"
+	},
+	KP = {
+		Emoji = "🇰🇵",
+		Name = "NorthKorea"
+	},
+	GN = {
+		Emoji = "🇬🇳",
+		Name = "Guinea"
+	},
+	GB = {
+		Emoji = "🇬🇧",
+		Name = "UnitedKingdom"
+	},
+	GH = {
+		Emoji = "🇬🇭",
+		Name = "Ghana"
+	},
+	UY = {
+		Emoji = "🇺🇾",
+		Name = "Uruguay"
+	},
+	SL = {
+		Emoji = "🇸🇱",
+		Name = "SierraLeone"
+	},
+	SJ = {
+		Emoji = "🇸🇯",
+		Name = "Svalbard & JanMayen"
+	},
+	IS = {
+		Emoji = "🇮🇸",
+		Name = "Iceland"
+	},
+	PN = {
+		Emoji = "🇵🇳",
+		Name = "PitcairnIslands"
+	},
+	YT = {
+		Emoji = "🇾🇹",
+		Name = "Mayotte"
+	},
+	FM = {
+		Emoji = "🇫🇲",
+		Name = "Micronesia"
+	},
+	AZ = {
+		Emoji = "🇦🇿",
+		Name = "Azerbaijan"
+	},
+	GI = {
+		Emoji = "🇬🇮",
+		Name = "Gibraltar"
+	},
+	CF = {
+		Emoji = "🇨🇫",
+		Name = "CentralAfricanRepublic"
+	},
+	PK = {
+		Emoji = "🇵🇰",
+		Name = "Pakistan"
+	},
+	SE = {
+		Emoji = "🇸🇪",
+		Name = "Sweden"
+	},
+	CL = {
+		Emoji = "🇨🇱",
+		Name = "Chile"
+	},
+	FK = {
+		Emoji = "🇫🇰",
+		Name = "FalklandIslands"
+	},
+	MW = {
+		Emoji = "🇲🇼",
+		Name = "Malawi"
+	},
+	GM = {
+		Emoji = "🇬🇲",
+		Name = "Gambia"
+	},
+	SK = {
+		Emoji = "🇸🇰",
+		Name = "Slovakia"
+	},
+	GS = {
+		Emoji = "🇬🇸",
+		Name = "SouthGeorgia & SouthSandwichIslands"
+	},
+	MV = {
+		Emoji = "🇲🇻",
+		Name = "Maldives"
+	},
+	IT = {
+		Emoji = "🇮🇹",
+		Name = "Italy"
+	},
+	PY = {
+		Emoji = "🇵🇾",
+		Name = "Paraguay"
+	},
+	ES = {
+		Emoji = "🇪🇸",
+		Name = "Spain"
+	},
+	NR = {
+		Emoji = "🇳🇷",
+		Name = "Nauru"
+	},
+	GQ = {
+		Emoji = "🇬🇶",
+		Name = "EquatorialGuinea"
+	},
+	MN = {
+		Emoji = "🇲🇳",
+		Name = "Mongolia"
+	},
+	PL = {
+		Emoji = "🇵🇱",
+		Name = "Poland"
+	},
+	SC = {
+		Emoji = "🇸🇨",
+		Name = "Seychelles"
+	},
+	PG = {
+		Emoji = "🇵🇬",
+		Name = "PapuaNewGuinea"
+	},
+	AQ = {
+		Emoji = "🇦🇶",
+		Name = "Antarctica"
+	},
+	BG = {
+		Emoji = "🇧🇬",
+		Name = "Bulgaria"
+	},
+	TC = {
+		Emoji = "🇹🇨",
+		Name = "Turks & CaicosIslands"
+	},
+	VU = {
+		Emoji = "🇻🇺",
+		Name = "Vanuatu"
+	},
+	MP = {
+		Emoji = "🇲🇵",
+		Name = "NorthernMarianaIslands"
+	},
+	BI = {
+		Emoji = "🇧🇮",
+		Name = "Burundi"
+	},
+	AR = {
+		Emoji = "🇦🇷",
+		Name = "Argentina"
+	},
+	LT = {
+		Emoji = "🇱🇹",
+		Name = "Lithuania"
+	},
+	AO = {
+		Emoji = "🇦🇴",
+		Name = "Angola"
+	},
+	NP = {
+		Emoji = "🇳🇵",
+		Name = "Nepal"
+	},
+	DK = {
+		Emoji = "🇩🇰",
+		Name = "Denmark"
+	},
+	KY = {
+		Emoji = "🇰🇾",
+		Name = "CaymanIslands"
+	},
+	CD = {
+		Emoji = "🇨🇩",
+		Name = "Congo-Kinshasa"
+	},
+	EE = {
+		Emoji = "🇪🇪",
+		Name = "Estonia"
+	},
+	CA = {
+		Emoji = "🇨🇦",
+		Name = "Canada"
+	},
+	MC = {
+		Emoji = "🇲🇨",
+		Name = "Monaco"
+	},
+	NZ = {
+		Emoji = "🇳🇿",
+		Name = "NewZealand"
+	},
+	KN = {
+		Emoji = "🇰🇳",
+		Name = "St.Kitts & Nevis"
+	},
+	DZ = {
+		Emoji = "🇩🇿",
+		Name = "Algeria"
+	},
+	WS = {
+		Emoji = "🇼🇸",
+		Name = "Samoa"
+	},
+	NC = {
+		Emoji = "🇳🇨",
+		Name = "NewCaledonia"
+	},
+	GF = {
+		Emoji = "🇬🇫",
+		Name = "FrenchGuiana"
+	},
+	PA = {
+		Emoji = "🇵🇦",
+		Name = "Panama"
+	},
+	BH = {
+		Emoji = "🇧🇭",
+		Name = "Bahrain"
+	},
+	PS = {
+		Emoji = "🇵🇸",
+		Name = "PalestinianTerritories"
+	},
+	HK = {
+		Emoji = "🇭🇰",
+		Name = "HongKongSARChina"
+	},
+	SI = {
+		Emoji = "🇸🇮",
+		Name = "Slovenia"
+	},
+	LK = {
+		Emoji = "🇱🇰",
+		Name = "SriLanka"
+	},
+	SS = {
+		Emoji = "🇸🇸",
+		Name = "SouthSudan"
+	},
+	CC = {
+		Emoji = "🇨🇨",
+		Name = "Cocos(Keeling)Islands"
+	},
+	US = {
+		Emoji = "🇺🇸",
+		Name = "UnitedStates"
+	},
+	EC = {
+		Emoji = "🇪🇨",
+		Name = "Ecuador"
+	},
+	SY = {
+		Emoji = "🇸🇾",
+		Name = "Syria"
+	},
+	IR = {
+		Emoji = "🇮🇷",
+		Name = "Iran"
+	},
+	BE = {
+		Emoji = "🇧🇪",
+		Name = "Belgium"
+	},
+	AG = {
+		Emoji = "🇦🇬",
+		Name = "Antigua & Barbuda"
+	},
+	LS = {
+		Emoji = "🇱🇸",
+		Name = "Lesotho"
+	},
+	MS = {
+		Emoji = "🇲🇸",
+		Name = "Montserrat"
+	},
+	BS = {
+		Emoji = "🇧🇸",
+		Name = "Bahamas"
+	},
+	SX = {
+		Emoji = "🇸🇽",
+		Name = "SintMaarten"
+	},
+	KM = {
+		Emoji = "🇰🇲",
+		Name = "Comoros"
+	},
+	LA = {
+		Emoji = "🇱🇦",
+		Name = "Laos"
+	},
+	ID = {
+		Emoji = "🇮🇩",
+		Name = "Indonesia"
+	},
+	CO = {
+		Emoji = "🇨🇴",
+		Name = "Colombia"
+	},
+	MX = {
+		Emoji = "🇲🇽",
+		Name = "Mexico"
+	},
+	ET = {
+		Emoji = "🇪🇹",
+		Name = "Ethiopia"
+	},
+	LC = {
+		Emoji = "🇱🇨",
+		Name = "St.Lucia"
+	},
+	VI = {
+		Emoji = "🇻🇮",
+		Name = "U.S.VirginIslands"
+	},
+	AS = {
+		Emoji = "🇦🇸",
+		Name = "AmericanSamoa"
+	}
+}
+
+
+return Region]]></ProtectedString>
+						<string name="ScriptGuid">{41FA16E4-9B10-4111-B9D3-582B5A01457B}</string>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<string name="Name">CountryAPI</string>
+						<int64 name="SourceAssetId">10619784207</int64>
+						<BinaryString name="Tags"></BinaryString>
+					</Properties>
+				</Item>
+			</Item>
+			<Item class="Script" referent="RBX21AC1921BA44405F85FD2B160630F581">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[local ServerScriptService = game:GetService("ServerScriptService")
+local Players = game:GetService("Players")
+
+local ChatService = require(ServerScriptService:WaitForChild("ChatServiceRunner"):WaitForChild("ChatService"))
+
+function CheckChatTags(Player)
+	local Speaker = ChatService:GetSpeaker(Player)
+	if Players[Player].Name == "Mzxtheus" then
+		Speaker:SetExtraData("Tags", {{TagText = 'DEV', TagColor = Color3.fromRGB(0, 255, 238)}})
+	end
+end
+
+ChatService.SpeakerAdded:Connect(CheckChatTags)]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{CB5F8EC4-0BC9-4F4F-AF48-5F4E04534098}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">ChatTags</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="Script" referent="RBX5E66DE930E5949C582D4D05B0DB54F4A">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[local Players = game:GetService("Players")
+local Teams = game:GetService("Teams")
+local ServerStorage = game:GetService("ServerStorage")
+
+function onPlayerAdded(player: Player)
+	local function onCharacterAdded(character: Model)
+		ServerStorage.KickTool:Clone().Parent = player.Backpack
+		
+		if string.find(player.Team.Name, "Goalkeeper") then
+			ServerStorage.KeeperTool:Clone().Parent = player.Backpack
+		elseif string.find(player.Team.Name, "Officials") then
+			ServerStorage.RC:Clone().Parent = player.Backpack
+			ServerStorage.YC:Clone().Parent = player.Backpack
+			ServerStorage.Spray:Clone().Parent = player.Backpack
+			ServerStorage.Whistle:Clone().Parent = player.Backpack
+			ServerStorage.SpawnTool:Clone().Parent = player.Backpack
+		end
+		
+		if game.PlaceId == 14306285450 then
+			ServerStorage.SpawnTool:Clone().Parent = player.Backpack
+		end
+	end
+	
+	if player.Character then
+		task.spawn(onCharacterAdded, player.Character)
+	end
+	player.CharacterAdded:Connect(onCharacterAdded)
+end
+
+for _, player: Player in ipairs(Players:GetPlayers()) do
+	task.spawn(onPlayerAdded, player)
+end
+Players.PlayerAdded:Connect(onPlayerAdded)]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{C8C27266-6E43-432B-AAEA-60986D1C454A}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">GiveTools</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="Script" referent="RBX2CE2A0E0D58441FC84D5B103BF0643C1">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[local Players = game:GetService("Players")
+
+function PlayerAdded(Player)
+	local function RTP()
+		
+		local Character = Player.Character
+		local LastCFrame = Character:GetPrimaryPartCFrame()
+		
+		if not Character then 
+			return 
+		end
+
+		Player:LoadCharacter()
+		Character = Player.Character
+		Character:SetPrimaryPartCFrame(LastCFrame)
+	end
+
+	local function MSG(Message)
+		if string.lower(Message) == "rtp" or string.lower(Message) == "re" then
+			RTP(Player)
+		end
+	end
+	
+	Player.Changed:Connect(function(Property)
+		if Property == "Team" then
+			local Character = Player.Character
+			if Character then
+				Player:LoadCharacter()
+			end
+		end
+	end)
+
+	Player.Chatted:Connect(MSG)
+end	
+
+Players.PlayerAdded:Connect(PlayerAdded)]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{196934D2-6B2E-436C-9CAA-8E85144EC5A8}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">RespawnHandler</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+		</Item>
+		<Item class="Folder" referent="RBXB73493A3DE424B8B87BBC2AB96FC9A2B">
+			<Properties>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">Mechanics</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+			<Item class="Script" referent="RBX21CCFEEC730541B08549B7E04862015B">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[--[[
+:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+::::::::'##:::'##::'#######::'##::::'##:'##:::::::'####::'######:::::::::
+:::::::: ##::'##::'##.... ##: ##:::: ##: ##::::::: ####:'##... ##::::::::
+:::::::: ##:'##::: ##:::: ##: ##:::: ##: ##:::::::. ##:: ##:::..:::::::::
+:::::::: #####:::: ##:::: ##: #########: ##:::::::'##:::. ######:::::::::
+:::::::: ##. ##::: ##:::: ##: ##.... ##: ##:::::::..:::::..... ##::::::::
+:::::::: ##:. ##:: ##:::: ##: ##:::: ##: ##:::::::::::::'##::: ##::::::::
+:::::::: ##::. ##:. #######:: ##:::: ##: ########:::::::. ######:::::::::
+::::::::..::::..:::.......:::..:::::..::........:::::::::......::::::::::
+:::::::::::::::'###::::'########::'##::::'##:'####:'##::: ##:::::::::::::
+::::::::::::::'## ##::: ##.... ##: ###::'###:. ##:: ###:: ##:::::::::::::
+:::::::::::::'##:. ##:: ##:::: ##: ####'####:: ##:: ####: ##:::::::::::::
+::::::::::::'##:::. ##: ##:::: ##: ## ### ##:: ##:: ## ## ##:::::::::::::
+:::::::::::: #########: ##:::: ##: ##. #: ##:: ##:: ##. ####:::::::::::::
+:::::::::::: ##.... ##: ##:::: ##: ##:.:: ##:: ##:: ##:. ###:::::::::::::
+:::::::::::: ##:::: ##: ########:: ##:::: ##:'####: ##::. ##:::::::::::::
+::::::::::::..:::::..::........:::..:::::..::....::..::::..::::::::::::::
+:::'####:'##::: ##:'########:'####:'##::: ##:'####:'########:'########:::
+:::. ##:: ###:: ##: ##.....::. ##:: ###:: ##:. ##::... ##..:: ##.....::::
+:::: ##:: ####: ##: ##:::::::: ##:: ####: ##:: ##::::: ##:::: ##:::::::::
+:::: ##:: ## ## ##: ######:::: ##:: ## ## ##:: ##::::: ##:::: ######:::::
+:::: ##:: ##. ####: ##...::::: ##:: ##. ####:: ##::::: ##:::: ##...::::::
+:::: ##:: ##:. ###: ##:::::::: ##:: ##:. ###:: ##::::: ##:::: ##:::::::::
+:::'####: ##::. ##: ##:::::::'####: ##::. ##:'####:::: ##:::: ########:::
+:::....::..::::..::..::::::::....::..::::..::....:::::..:::::........::::
+:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+:::::::::::: Thanks for using Kohl's Admin Infinite Edition! ::::::::::::
+:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+:::::::::::::::::::: This script is developed by Kohl :::::::::::::::::::
+:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+: To configure the admin open the Settings module inside of this script	:
+:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+]]
+
+if _G.KAU then script:Destroy() end _G.KAU=true
+script.Name,script.Parent='Kohl\'s Admin Infinite',game:service'ServerScriptService'
+require(1868400649)]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{C1E78CC6-5752-4B9E-B73D-B365B25C1AE2}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">KohlServer</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+				<Item class="ModuleScript" referent="RBX577C520BE61942F6978950C1BA4882E0">
+					<Properties>
+						<Content name="LinkedSource"><null></null></Content>
+						<ProtectedString name="Source"><![CDATA[--[[
+
+ADMIN POWERS
+
+0		Player
+1		VIP/Donor
+2		Moderator
+3		Administrator
+4		Super Administrator
+5		Owner
+6		Game Creator
+
+First table consists of the different variations of the command.
+
+Second table consists of the description and an example of how to use it.
+
+Third index is the ADMIN POWER required to use the command.
+
+Fourth table consists of the arguments that will be returned in the args table.
+'player'	-- returns an array of Players
+'userid'	-- returns an array of userIds
+'boolean'	-- returns a Boolean value
+'color'		-- returns a Color3 value
+'number'	-- returns a Number value
+'string'	-- returns a String value
+'time'		-- returns # of seconds
+'banned'	-- returns a value from Bans table
+'admin'		-- returns a value from Admins table
+-- Adding / to any argument will make it optional; can return nil!!!
+
+Fifth index consists of the function that will run when the command is executed properly.	]]
+return {
+
+	{{'test','othertest'},{'Test command.','Example'},5,{'number','string/'},function(pl,args)
+		print(pl,args[1],args[2])
+	end},
+	{
+		{"autoteam", "autotm"}, {"Automatically team every player based on their team.", "team(name) side(home/away)"},
+		2,
+		{"string"},
+		function(player: Player, args: {string | number})
+			local arguments: string = string.split(args[1], " ")			
+			local playersToTeam: {Player} = {}
+			local sideToTeam: Team
+			local teamName = string.lower(arguments[1])
+			local sideSelected = string.lower(arguments[2])
+
+			for index, player in pairs(game:GetService("Players"):GetPlayers()) do
+				if not player:FindFirstChild("leaderstats") or not player.leaderstats:FindFirstChild("Team") then continue end
+				local playerTeam: string = string.lower(player.leaderstats.Team.Value)
+				if playerTeam:find("^"..teamName) then
+					table.insert(playersToTeam, player)
+				end
+			end
+
+			for index, team in pairs(game:GetService("Teams"):GetTeams()) do
+				if string.lower(team.Name):find("^"..sideSelected) then
+					sideToTeam = team
+				end
+			end
+
+			if sideToTeam == nil then
+				return error("No team named "..arguments[2].." found")
+			end
+
+			for index, player in pairs(playersToTeam) do
+				player.Team = sideToTeam
+			end
+		end,
+	},
+	{
+		{"randomsubstitute", "randomsub"}, {"Randomly teams a player substitute", "randomsubstitute side(home/away amount)"},
+		2,
+		{"string", "number"},
+		function (player: Player, args: {string})
+			local arguments: string = string.split(args[1], " ")	
+			local sideSelected = string.lower(arguments[1])
+			local amount: number | string = tonumber(arguments[2])
+			local foundTeam: Team
+
+			for index, team in pairs(game:GetService("Teams"):GetTeams()) do
+				if string.lower(team.Name):find("^"..sideSelected) then
+					foundTeam = team
+				end
+			end
+
+			if not foundTeam then
+				return error("No team named "..sideSelected.." found")
+			elseif foundTeam.Name ~= "Home" and foundTeam.Name ~= "Away" then
+				return error("Team side must be away or home")
+			end
+
+			local function SubPlayer()
+				local teamPlayers = foundTeam:GetPlayers()
+				local playerGettingSubbed = math.random(1, #teamPlayers)
+				local subTeamString = "@%s Substitutes"
+				subTeamString = subTeamString:format(foundTeam.Name)
+				teamPlayers[playerGettingSubbed].Team = game:GetService("Teams")[subTeamString]
+			end
+
+			for i = 1, amount do
+				SubPlayer()
+			end
+
+		end,
+	},
+};]]></ProtectedString>
+						<string name="ScriptGuid">{8A190229-9583-4B79-A09D-264FFBB4B259}</string>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<string name="Name">Custom Commands</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX8B60357563FD4E59A65C71D24798C031">
+					<Properties>
+						<Content name="LinkedSource"><null></null></Content>
+						<ProtectedString name="Source"><![CDATA[-- Use usernames or userIds to add a user to a list
+-- For example;	Admins={'MyBestFriend','Telamon',261}
+
+local Banned={} -- For those who have wronged you, & this guy
+
+--------------------------------------------------------------
+-- You DO NOT need to add yourself to any of these lists!!! --
+--------------------------------------------------------------
+
+local Owners={"zwerxz","vronaido" }					-- Can set SuperAdmins, & use all the commands
+local SuperAdmins={}			-- Can set permanent admins, & shutdown the game
+local Admins={}					-- Can ban, crash, & set Moderators/VIP
+local Mods={game.PrivateServerOwnerId}					-- Can kick, mute, & use most commands
+local VIP={}					-- Can use nonabusive commands only on self
+
+local Settings={
+
+	-- Style Options
+
+	Flat=true;						-- Enables Flat theme / Disables Aero theme
+	ForcedColor=false;				-- Forces everyone to have set color & transparency
+	Color=Color3.fromRGB(35, 50, 35);		-- Changes the Color of the user interface
+	ColorTransparency=.5;			-- Changes the Transparency of the user interface
+	Chat=false;						-- Enables the custom chat
+	BubbleChat=false;				-- Enables the custom bubble chat
+
+	-- Basic Settings
+
+	AdminCredit=false;				-- Enables the credit GUI for that appears in the bottom right
+	AutoClean=false;				-- Enables automatic cleaning of hats & tools in the Workspace
+	AutoCleanDelay=60;				-- The delay between each AutoClean routine
+	CommandBar=true;				-- Enables the Command Bar | GLOBAL KEYBIND: \
+	FunCommands=true;				-- Enables fun yet unnecessary commands
+	FreeAdmin=false;				-- Set to 1-5 to grant admin powers to all, otherwise set to false
+	PublicLogs=false;				-- Allows all users to see the command & chat logs
+	Prefix=':';						-- Character to begin a command
+								--[[
+	Admin Powers
+	
+0			Player
+1			VIP					Can use nonabusive commands only on self
+2			Moderator			Can kick, mute, & use most commands
+3			Administrator		Can ban, crash, & set Moderators/VIP
+4			SuperAdmin			Can grant permanent powers, & shutdown the game
+5			Owner				Can set SuperAdmins, & use all the commands
+6			Game Creator		Can set owners & use all the commands
+
+	Group & VIP Admin
+	
+		You can set multiple Groups & Ranks to grant users admin powers:
+		
+GroupAdmin={
+[12345]={[254]=4,[253]=3};
+[GROUPID]={[RANK]=ADMINPOWER}
+};
+
+		You can set multiple Assets to grant users admin powers:
+		
+VIPAdmin={
+[12345]=3;
+[54321]=4;
+[ITEMID]=ADMINPOWER;
+};								]]
+
+	GroupAdmin={
+		[7041322] = {
+			[255] = 6,
+			[254] = 5,
+			[253] = 3,
+			[250] = 3
+		}
+	};
+
+	VIPAdmin={
+
+	};
+
+	-- Permissions
+	-- You can set the admin power required to use a command
+	-- COMMANDNAME=ADMINPOWER;
+
+	Permissions={
+
+	};
+
+}
+
+
+
+return {Settings,{Owners,SuperAdmins,Admins,Mods,VIP,Banned}}]]></ProtectedString>
+						<string name="ScriptGuid">{0AEB39F5-16C4-4080-A3A6-1C40DE6F45A9}</string>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<string name="Name">Settings</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+					</Properties>
+				</Item>
+			</Item>
+			<Item class="Script" referent="RBX7A9580B1AF734C27AEA3C780627D36DA">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[local Players = game:GetService("Players")
+local crowdTeam = game:GetService("Teams"):FindFirstChild("Crowd")
+
+local matchValue = workspace:WaitForChild("Core"):WaitForChild("Stats"):WaitForChild("Match")
+
+function onPartTouched(part)
+	local character = part.Parent
+	local player = Players:GetPlayerFromCharacter(character)
+
+	if player and player.Team == crowdTeam and matchValue.Value ~= "Training" then
+		player:LoadCharacter()
+	end
+end
+
+-- workspace.AntiInvade.Touched:Connect(onPartTouched)
+]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{7C758CC8-A3C6-4572-9BCD-207F543E71D8}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">AntiInvade</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="Script" referent="RBXF184F98A05C64A459B65C4F2388C1F9B">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[local Teams = game:GetService("Teams")
+
+local HomeGk = Teams:WaitForChild("-Home Goalkeeper")
+local AwayGk = Teams:WaitForChild("-Away Goalkeeper")
+
+function CheckHome(Player)
+	
+	if #HomeGk:GetPlayers() > 1 then
+		
+		Player.Team = Teams:WaitForChild("Home")
+	end
+end
+
+function CheckAway(Player)
+	
+	if #AwayGk:GetPlayers() > 1 then
+		
+		Player.Team = Teams:WaitForChild("Away")
+	end
+end
+
+HomeGk.PlayerAdded:Connect(CheckHome)
+AwayGk.PlayerAdded:Connect(CheckAway)]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{7381E234-B334-4A4D-88F3-0A94DC2668C8}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">RemoveTwoGks</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="Script" referent="RBX2924EEE608E34883A959D50851152D02">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local RemoteEvents = ReplicatedStorage:WaitForChild("Remotes")
+local MarkerEvent = RemoteEvents.Marker
+
+local MarkerView = {
+	{"Home", "-Home Goalkeeper", "@HSubs"},
+	{"Away", "-Away Goalkeeper", "@ASubs"}
+}
+
+function CheckMarkerView(sender, viewer)
+	
+	local senderTeamName = sender.Team.Name
+	local viewerTeamName = viewer.Team.Name
+	
+	if viewerTeamName == senderTeamName then
+		return true
+	else
+		for _, team in pairs(MarkerView) do
+			if table.find(team, senderTeamName) and table.find(team, viewerTeamName) then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+MarkerEvent.OnServerEvent:Connect(function(Player, Position)
+	
+	local Team = Player.TeamColor
+	local TeamColor = Instance.new("Part")
+
+	for _, v in pairs(game.Players:GetPlayers()) do
+		if CheckMarkerView(Player, v) then
+			TeamColor.BrickColor = Team
+			MarkerEvent:FireClient(v, TeamColor.Color, Position, Player)
+			TeamColor:Destroy()
+		end
+	end
+end)]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{99829540-7796-4EF0-9AF7-0501971B5C3E}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">MarkerServer</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="Script" referent="RBXBC699A1F8080467794D7E67283D54A68">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HTTPService = game:GetService("HttpService")
+
+local FunctionEvents = ReplicatedStorage:WaitForChild("RemoteFunctions")
+local PlaceInfoEvent = FunctionEvents.PlaceInfo
+
+local ServerInfo = HTTPService:JSONDecode(HTTPService:GetAsync('http://ip-api.com/json/'))
+
+PlaceInfoEvent.OnServerInvoke = function(Player, Command, Variables)
+	
+	if Command == "Server" then
+
+		local State = ServerInfo["country"]
+		local City = ServerInfo["regionName"]
+
+		local Text = State..(", "..City)
+
+		return Text
+	end
+end]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{0B0A411C-2EDE-4C98-94FB-6CC424C62A79}</string>
+					<BinaryString name="AttributesSerialize">AgAAAAsAAABUZXN0QmlnZm9vdAMACQAAAFRlc3RSZWFjdAMA</BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">PlaceInfo</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="Script" referent="RBX489FC0EAC9B7410EA492139B6BDC3CF4">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[type PlayerHoldBalls = {
+	[Player]: Maid
+}
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Maid = require(ReplicatedStorage:WaitForChild("Utils"):WaitForChild("Maid"))
+local holdballAnimation: Animation = ReplicatedStorage:WaitForChild("Animations"):WaitForChild("HoldBall")
+local keeperHoldball: Animation = ReplicatedStorage:WaitForChild("Animations"):WaitForChild("KeeperHoldBall")
+
+local playerHoldballs = {}
+local playerKeeperHoldBall = {}
+
+function onPlayerJoined(player: Player)
+	playerHoldballs[player] = Maid.new()
+	playerKeeperHoldBall[player] = Maid.new()
+	
+	local function onCharacterAdded(character: Model)
+		character:WaitForChild("HumanoidRootPart")
+		character:WaitForChild("Humanoid")
+		local humanoidRootPart: BasePart, humanoid: Humanoid = character.HumanoidRootPart, character.Humanoid
+		
+		
+		playerHoldballs[player]:Destroy()
+		local animationTrack: AnimationTrack | nil = nil
+		
+		playerHoldballs[player]:GiveTask(humanoidRootPart.ChildAdded:Connect(function(child: Weld)
+			if child.Name ~= "BallWeld" then return end
+			local animator: Animator = humanoid:FindFirstChildOfClass("Animator")
+			local ballInstance = child.Part0
+			
+			if not ballInstance:GetAttribute("Picked") then
+				animationTrack = animator:LoadAnimation(holdballAnimation)
+				playerKeeperHoldBall[player]:GiveTask(ballInstance:GetAttributeChangedSignal("Picked"):Connect(function()
+					if animationTrack then animationTrack:Stop() end
+					if ballInstance:GetAttribute("Picked") then
+						animationTrack = animator:LoadAnimation(keeperHoldball)
+					else
+						animationTrack = animator:LoadAnimation(holdballAnimation)
+					end
+					animationTrack:Play()
+				end))
+			else
+				animationTrack = animator:LoadAnimation(keeperHoldball)
+			end
+			animationTrack:Play()
+		end))
+		playerHoldballs[player]:GiveTask(humanoidRootPart.ChildRemoved:Connect(function(child: Weld)
+			if child.Name ~= "BallWeld" then return end
+			if not animationTrack then return end
+			animationTrack:Stop()
+			playerKeeperHoldBall[player]:Destroy()
+		end))
+	end
+	
+	if player.Character then
+		task.spawn(onCharacterAdded, player.Character)
+	end
+	player.CharacterAdded:Connect(onCharacterAdded)
+end
+
+function onPlayerLeave(player: Player)
+	if not playerHoldballs[player] then return end
+	playerHoldballs[player]:Destroy()
+	playerKeeperHoldBall[player]:Destroy()
+end
+
+for _, player: Player in pairs(Players:GetPlayers()) do
+	task.spawn(onPlayerJoined, player)
+end
+Players.PlayerAdded:Connect(onPlayerJoined)
+Players.PlayerRemoving:Connect(onPlayerLeave)]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{A1E8B3C9-6E52-44C7-94A5-6C41512BB0A0}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">HoldBall</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="Script" referent="RBX8A0141D312B24811B4F9118139CBECE6">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[local Players = game:GetService("Players")
+
+Players.PlayerAdded:Connect(function(player: Player)
+	player.CharacterAppearanceLoaded:Connect(function(character: Model)
+		for _, characterPart: BasePart in pairs(character:GetChildren()) do
+			if characterPart:IsA("CharacterMesh") then
+				characterPart:Destroy()
+			end
+		end
+	end)
+end)]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{72E88C5B-7295-4957-B37E-468AFA0EC99A}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">RemovePackages</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="Script" referent="RBX22E26F4A0F31437E9B1B6158D41F530A">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[local Teams = game:GetService("Teams")
+local Debris = game:GetService("Debris")
+local SoundService = game:GetService("SoundService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local Maid = require(ReplicatedStorage:WaitForChild("Utils"):WaitForChild("Maid"))
+local BallService = require(ServerScriptService:WaitForChild("Services"):WaitForChild("BallService"))
+local SoundModuleService = require(ServerScriptService:WaitForChild("Services"):WaitForChild("SoundModuleService"))
+
+local gltsMaid = {}
+
+local statsFolder: Folder = workspace:WaitForChild("Core"):WaitForChild("Stats")
+local statEvent: BindableEvent = ServerScriptService:WaitForChild("ServerRemote"):WaitForChild("StatEvent")
+
+function GetClosestPlayerFromGLT(glt: BasePart)
+	local PresumedGK: Player? = Teams["-"..glt.Name.." Goalkeeper"]:GetPlayers()[1]
+	if PresumedGK then return PresumedGK end
+
+	local closestPlayer: Player?
+	local closestMagnitude: number = math.huge
+	for _, player: Player in pairs(Teams[glt.Name]:GetPlayers()) do
+		if not player.Character then continue end
+		if not player.Character:FindFirstChild("HumanoidRootPart") then continue end
+		
+		local distance = (player.Character.HumanoidRootPart.Position - glt.Position).Magnitude
+		if distance > closestMagnitude then continue end
+		closestMagnitude = distance
+		closestPlayer = player
+	end
+	
+	return closestPlayer
+end
+
+function CalculateGLTDelay(player: Player, ballVelocityMagnitude: number)
+	if not player then return 0.15 end
+	local playerPing: number = player["leaderstats"]["Ping"].Value
+	return math.min((playerPing/500 + ballVelocityMagnitude/750 + .125), 0.5)
+end
+
+function HandleGoalDetection(GLT: BasePart)
+	gltsMaid[GLT] = {}
+	gltsMaid[GLT]["Main"] = Maid.new()
+	gltsMaid[GLT]["Saved"] = Maid.new()
+
+	local function GiveTask()
+		gltsMaid[GLT]["Main"]:Destroy()
+		gltsMaid[GLT]["Saved"]:Destroy()
+		
+		local saved = false
+
+		gltsMaid[GLT]["Main"]:GiveTask(GLT.Touched:Connect(function(partThatTouched: BasePart)
+			local velocity = partThatTouched.AssemblyLinearVelocity.Magnitude
+			local ball = BallService:GetBall(partThatTouched)
+			if not ball then return end
+			if ball.Data.PlayerOnBall.Value ~= nil then return end
+
+			gltsMaid[GLT]["Saved"]:GiveTask(ball.Data.PlayerOnBall:GetPropertyChangedSignal("Value"):Connect(function()
+				print("saved")
+				-- if ball.Data.PlayerOnBall.Value == nil then return end
+				saved = true
+				SoundModuleService:Play(SoundService.Crowd.Missed)
+				GiveTask()
+				return
+			end))
+
+			local closestPlayer: Player = GetClosestPlayerFromGLT(GLT)
+			local gltDelay = CalculateGLTDelay(closestPlayer, velocity)
+			task.wait(gltDelay)
+			if saved then return end
+			if ball.Data.PlayerOnBall.Value == nil then
+				ball.Instance.CanTouch = false
+				ball.Instance.Highlight.FillColor = Color3.new(255, 0, 0)
+				ball.Instance.Highlight.FillTransparency = 0
+				Debris:AddItem(ball.Instance, 3)
+
+				local playerTeam: string = ball.Data.LastShoot.Value.Team.Name
+				if playerTeam:find("@") then return end
+
+				if (string.find(playerTeam, "Home") or string.find(playerTeam, "Away")) and playerTeam:sub(1, 1) == "-" then
+					-- Removes the "-", " "(empty space) and "Goalkeeper" from playerTeam, if the player team is either -Home Goalkeeper or -Away Goalkeeper
+					playerTeam = playerTeam:gsub("^%-%s*(.-)%sGoalkeeper$", "%1")
+				end
+
+				local assister: ObjectValue | nil = ball.Data.LastShootShoot.Value
+				local ownGoal: boolean = false
+
+				if string.find(ball.Data.LastShoot.Value.Team.Name, "Home") or string.find(ball.Data.LastShoot.Value.Team.Name, "Away") then	
+					local processedLastShootTeam = ball.Data.LastShoot.Value.Team.Name:gsub("^%-%s*(.-)%s*Goalkeeper$", "%1")
+					local processedLastShootShootTeam = ball.Data.LastShootShoot.Value and ball.Data.LastShootShoot.Value.Team.Name:gsub("^%-%s*(.-)%s*Goalkeeper$", "%1")			
+
+					if processedLastShootTeam ~= processedLastShootShootTeam or ball.Data.LastShoot.Value == ball.Data.LastShootShoot.Value then
+						assister = nil
+					end
+				else
+					assister = nil
+				end
+
+				statEvent:Fire("Goal", {
+					scorer = ball.Data.LastShoot.Value,
+					assist = assister,
+					team = ball.Data.LastShoot.Value.Team.Name,
+					ownGoal = playerTeam == GLT.Name,
+					gltName = GLT.Name
+				})
+			end
+			GiveTask()
+		end))
+	end
+
+	GiveTask()
+end
+
+for _, glt: BasePart in pairs(workspace.Core.GoalDetections:GetChildren()) do
+	task.spawn(HandleGoalDetection, glt)
+end]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{073D230D-3A07-49F2-82BF-9FED27854980}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">GLT</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="Script" referent="RBX7CB023D97A804E2B8A52B500BE914A39">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local RefereeService = require(ServerScriptService:WaitForChild("Services"):WaitForChild("RefereeService"))
+local RefereeEvent: RemoteEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Referee")
+
+RefereeEvent.OnServerEvent:Connect(function(player: Player, event: string, ...)
+	if player.TeamColor ~= BrickColor.new("Bright green") then return end
+	
+	if event == "SetGoal" then
+		local givenProps = ...
+		RefereeService:SetGoal(givenProps)
+	elseif event == "Timer" then
+		local givenState = ...
+		RefereeService:SetTimerState(givenState)
+	elseif event == "SetET" then
+		local givenET = ...
+		RefereeService:SetET(givenET)
+	elseif event == "ResetET" then
+		RefereeService:ResetET()
+	elseif event == "ResetScores" then
+		RefereeService:ResetScores()
+	elseif event == "ResetTimer" then
+		RefereeService:ResetTimer()
+	elseif event == "SetAbbreviation" then
+		local givenProps = ...
+		RefereeService:SetAbbreviation(givenProps)
+	elseif event == "SetMatchValue" then
+		local givenValue = ...
+		RefereeService:SetMatchValue(givenValue)
+	end
+end)]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{6CF69E66-387A-49AF-8F51-C8C6CF33CB1D}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">Referee</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="Script" referent="RBX1F81ACA169EF4DB9B8E2738DCBD57444">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[local PhysicsService = game:GetService("PhysicsService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local bodyParts = {
+	"Head",
+	"Left Arm",
+	"Right Arm",
+	"Left Leg",
+	"Right Leg",
+	"Torso",
+	"HumanoidRootPart"
+}
+
+local collisionGroups = {
+	"GLT",
+	"Ball",
+	"Player",
+	"AntiCamp"
+}
+
+for i, v in pairs(collisionGroups) do
+	PhysicsService:RegisterCollisionGroup(v)
+end
+PhysicsService:CollisionGroupSetCollidable("GLT", "Ball", false)
+PhysicsService:CollisionGroupSetCollidable("AntiCamp", "Ball", false)
+PhysicsService:CollisionGroupSetCollidable("Ball", "Player", false)
+
+workspace.Core.GoalDetections.Home.CollisionGroup = "GLT"
+workspace.Core.GoalDetections.Away.CollisionGroup = "GLT"
+
+for i, v in pairs(workspace.Core.Anticamp:GetChildren()) do
+	v.CollisionGroup = "AntiCamp"
+end
+
+function onPlayerJoined(player: Player)
+	local function onCharacterAdded(character: Model?)
+		for i: number = 1, #bodyParts do
+			character:WaitForChild(bodyParts[i])
+		end
+		
+		for _, characterPart: BasePart in pairs(character:GetChildren()) do
+			if not characterPart:IsA("BasePart") then continue end
+			characterPart.CollisionGroup = "Player"
+		end
+	end
+	
+	if player.Character then
+		task.spawn(onCharacterAdded, player.Character)
+	end
+	player.CharacterAdded:Connect(onCharacterAdded)
+end
+
+for _, player: Player in pairs(Players:GetPlayers()) do
+	task.spawn(onPlayerJoined, player)
+end
+Players.PlayerAdded:Connect(onPlayerJoined)]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{88DEAD9D-70DF-4860-BAFC-E08932FC05AD}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">Collision</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="Script" referent="RBX1551502063294422A916AD254A22B4C7">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[for _, velocityReduer: BasePart in pairs(workspace.Core.VelocityReducer:GetChildren()) do
+	if not velocityReduer:IsA("BasePart") then return end
+	velocityReduer.Touched:Connect(function(partThatTouched: BasePart)
+		if partThatTouched:IsDescendantOf(workspace.Core.Balls) then
+			partThatTouched.AssemblyLinearVelocity = Vector3.new()
+		end
+	end)
+end]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{E3760CF1-6AE2-441E-BF26-B9C3E266BCD5}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">BallVelocityReducer</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="Script" referent="RBX906608ADFF774432A8622B810228CF8A">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[local Players = game:GetService("Players")
+
+local SET_PIECES_FOLDER = workspace:WaitForChild("Core"):WaitForChild("SetPieces")
+local BallService = require(game:GetService("ServerScriptService"):WaitForChild("Services"):WaitForChild("BallService"))
+
+local SET_PIECES = {
+	["AGK"] = Vector3.new(0, 2.5, -298.816),
+	["HGK"] = Vector3.new(0, 2.5, 298.816),
+	["APK"] = Vector3.new(0, 2.5, -251.126),
+	["HPK"] = Vector3.new(0, 2.5, 251.126),
+	["KO"] = Vector3.new(0, 2.5, 0),
+	["ALCK"] = Vector3.new(-198, 2.5, -313.004),
+	["HLCK"] = Vector3.new(-198, 2.5, 313.004),
+	["ARCK"] = Vector3.new(198, 2.5, -313.004),
+	["HRCK"] = Vector3.new(198, 2.5, 313.004),
+}
+
+function OnPlayerAdded(player: Player)
+	player.Chatted:Connect(function(message: string)
+		if player.Team.Name ~= "Officials" then return end
+		if string.sub(message, 1, 1) ~= ":" then return end
+		local setPieceName = message:gsub(":", "")
+		setPieceName = string.upper(setPieceName)
+		local foundSetPiece = SET_PIECES[setPieceName]
+		if foundSetPiece ~= nil then
+			BallService.new(foundSetPiece)
+		end
+	end)
+end
+
+Players.PlayerAdded:Connect(OnPlayerAdded)
+for i, v in ipairs(Players:GetPlayers()) do
+	task.spawn(OnPlayerAdded, v)
+end]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{5BD94908-8161-4934-A499-B262C884FAFB}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">SetPiece</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="Script" referent="RBX2AF5195052974C6F80F3D7D97DD8C1A3">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[local Teams = game:GetService("Teams")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local BlackListedTeams = {
+	"Crowd",
+	"Officials",
+	"@Away Substitutes",
+	"@Home Substitutes",
+}
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+
+local Celebrations = Remotes:WaitForChild("Celebrations")
+
+Celebrations.OnServerEvent:Connect(function(Player, Scorer, Og)
+	
+	
+	if Og == true then
+		
+		for _, Player in pairs(Players:GetPlayers()) do
+
+			if Player.Team ~= Scorer.Team then
+
+				if table.find(BlackListedTeams, Scorer.Team.Name) then
+
+					return
+				end
+
+				Player.PlayerGui.ShopGui.InventoryFrame.Visible = true
+			end
+		end
+		
+	else
+		
+		for _, Player in pairs(Players:GetPlayers()) do
+
+			if Player.Team == Scorer.Team then
+
+				if table.find(BlackListedTeams, Scorer.Team.Name) then
+
+					return
+				end
+
+				Player.PlayerGui.ShopGui.InventoryFrame.Visible = true
+			end
+		end
+	end	
+	
+	task.wait(4)
+	
+	for _, Player in pairs(Players:GetPlayers()) do
+
+		Player.PlayerGui.ShopGui.InventoryFrame.Visible = false
+	end
+end)]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{85D0BF05-AF8D-4C95-810C-E67A72B88276}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">CelebrationsScorer</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="Script" referent="RBX1CDDAD59584F41098076A524B2504487">
+				<Properties>
+					<ProtectedString name="Source"><![CDATA[local dss = game:GetService("DataStoreService")
+local ds = dss:GetDataStore("EmotesDS")
+
+
+local repl = game.ReplicatedStorage:WaitForChild("EmotesSource")
+local re = repl:WaitForChild("RE")
+local allEmotes = repl:WaitForChild("Emotes")
+
+
+--Saving data
+function save(plr)
+	
+	local Coins = plr.leaderstats.Coins.Value
+	
+	local ownedEmotes = plr.Emotes:GetChildren()
+	local emoteNames = {}
+	
+	for i, emote in pairs(ownedEmotes) do
+		table.insert(emoteNames, emote.Name)
+	end
+	
+	local combinedData = {Coins, emoteNames}
+	
+	ds:SetAsync(plr.UserId, combinedData)
+end
+
+game.Players.PlayerRemoving:Connect(save)
+
+game:BindToClose(function()
+	
+	for i, plr in pairs(game.Players:GetPlayers()) do
+		save(plr)
+	end
+end)
+
+
+--Loading data
+game.Players.PlayerAdded:Connect(function(plr)
+
+	local emotesF = Instance.new("Folder")
+	emotesF.Name = "Emotes"
+	emotesF.Parent = plr
+	
+	local data = ds:GetAsync(plr.UserId) or {1000, {}}
+	
+	for i, emote in pairs(data[2]) do
+		
+		if allEmotes:FindFirstChild(emote) then
+			allEmotes[emote]:Clone().Parent = emotesF
+		end
+	end
+end)
+
+
+--Handling purchases
+re.OnServerEvent:Connect(function(plr, emoteN)
+	
+	if emoteN and allEmotes:FindFirstChild(emoteN) and allEmotes[emoteN]:FindFirstChild("PRICE") then
+		
+		local price = allEmotes[emoteN].PRICE.Value
+		local pCash = plr.leaderstats.Coins
+		
+		local pEmotes = plr.Emotes
+		
+		if pCash.Value >= price and not pEmotes:FindFirstChild(emoteN) then
+			pCash.Value -= price
+			
+			allEmotes[emoteN]:Clone().Parent = pEmotes
+		end
+	end
+end)]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+					<Content name="LinkedSource"><null></null></Content>
+					<token name="RunContext">0</token>
+					<string name="ScriptGuid">{F212C8C2-F0BD-42CF-AF69-5E9A0AFDFE5F}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">EmotesServer</string>
+					<int64 name="SourceAssetId">11130428824</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+		</Item>
+	</Item>
+	<Item class="Folder" referent="RBXFDF4851DE0B84AC5A530E6B717D328DB">
+		<Properties>
+			<BinaryString name="AttributesSerialize"></BinaryString>
+			<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+			<bool name="DefinesCapabilities">false</bool>
+			<string name="Name">ServerRemote</string>
+			<int64 name="SourceAssetId">-1</int64>
+			<BinaryString name="Tags"></BinaryString>
+		</Properties>
+		<Item class="BindableEvent" referent="RBX56689476417741A892D5A0562D3635F5">
+			<Properties>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">StatEvent</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+		</Item>
+	</Item>
+	<Item class="Folder" referent="RBX0FE3EDCFBE6D4152BCE5AC8705197D88">
+		<Properties>
+			<BinaryString name="AttributesSerialize"></BinaryString>
+			<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+			<bool name="DefinesCapabilities">false</bool>
+			<string name="Name">Services</string>
+			<int64 name="SourceAssetId">-1</int64>
+			<BinaryString name="Tags"></BinaryString>
+		</Properties>
+		<Item class="ModuleScript" referent="RBXE4D9973C5B2E46DDB04B9231C2B5ACCA">
+			<Properties>
+				<Content name="LinkedSource"><null></null></Content>
+				<ProtectedString name="Source"><![CDATA[local SoundModuleService = {}
+
+local SoundService = game:GetService("SoundService")
+
+local cooldown: {[Sound]: boolean} = {}
+
+function SoundModuleService:Play(soundInstace: Sound)
+	task.spawn(function()
+		if cooldown[soundInstace] then return end
+		cooldown[soundInstace] = true
+		soundInstace:Play()
+		task.wait(soundInstace.TimeLength + .05)
+		cooldown[soundInstace] = nil
+	end)
+end
+
+return SoundModuleService
+]]></ProtectedString>
+				<string name="ScriptGuid">{A5387ED3-6104-4275-822D-FB7C096CD2D3}</string>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">SoundModuleService</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX682624E3C691429AABD6DD5A3C3A8804">
+			<Properties>
+				<Content name="LinkedSource"><null></null></Content>
+				<ProtectedString name="Source"><![CDATA[local RefereeService = {}
+
+local TimerModule = require(script:WaitForChild("TimerModule"))
+
+local MatchValues: {string} = {"Training", "Scrim", "Friendly", "League", "Cup", "Important Match", "Final Match"}
+
+local matchStats: Folder = workspace:WaitForChild("Core"):WaitForChild("Stats")
+local statEvent: BindableEvent = game:GetService("ServerScriptService"):WaitForChild("ServerRemote"):WaitForChild("StatEvent")
+
+type SetGoalProperties = {
+	add: boolean,
+	isHome: boolean
+}
+
+type SetAbbreviationProperties = {
+	abbreviation: string,
+	isHome: boolean
+}
+
+function RefereeService:SetMatchValue(value: string)
+	if not table.find(MatchValues, value) then return end
+	matchStats.Match.Value = value
+end
+
+function RefereeService:SetGoal(properties: SetGoalProperties)
+	if properties.add then
+		if properties.isHome then
+			matchStats.Scores.Home.Value += 1
+		else
+			matchStats.Scores.Away.Value += 1
+		end
+	else
+		if properties.isHome then
+			matchStats.Scores.Home.Value -= 1
+		else
+			matchStats.Scores.Away.Value -= 1
+		end
+	end
+end
+
+function RefereeService:SetTimerState(state: boolean)
+	if state then
+		TimerModule:Resume()
+	else
+		TimerModule:Pause()
+	end
+end
+
+function RefereeService:SetET(value: number)
+	if not tonumber(value) then return end
+	if tonumber(value) > 4 then return end
+	matchStats.ET.Value = tonumber(value)
+end
+
+function RefereeService:ResetET()
+	matchStats.ET.Value = 0
+end
+
+function RefereeService:ResetScores()
+	matchStats.Scores.Home.Value = 0
+	matchStats.Scores.Away.Value = 0
+end
+
+function RefereeService:ResetTimer()
+	TimerModule:Reset()
+end
+
+function RefereeService:SetAbbreviation(properties: SetAbbreviationProperties)
+	local fourLettersName: string = properties.abbreviation:sub(1, 4)
+	if properties.isHome then
+		matchStats["Home Name"].Value = fourLettersName
+	else
+		matchStats["Away Name"].Value = fourLettersName
+	end
+end
+
+return RefereeService
+]]></ProtectedString>
+				<string name="ScriptGuid">{D72B6722-0219-4466-9F98-DD8979D90BA2}</string>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">RefereeService</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+			<Item class="ModuleScript" referent="RBX22B58ED25A7346D8B8A028C7EB80D28D">
+				<Properties>
+					<Content name="LinkedSource"><null></null></Content>
+					<ProtectedString name="Source"><![CDATA[local TimerModule = {}
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local GAMECONFIG = ReplicatedStorage:WaitForChild("Config")
+
+local MINIMUM_PLAYERS = GAMECONFIG.MINIMUM_PLAYERS.Value
+local matchStats: Folder = workspace:WaitForChild("Core"):WaitForChild("Stats")
+local gameEvents = game:GetService("ReplicatedStorage"):WaitForChild("Bindable"):WaitForChild("GameEvents")
+
+local minutes: number, seconds: number = 0, 0
+local running: boolean = false
+local lastAttack = false
+
+function TimerModule:Resume()
+	if running then return end
+	if lastAttack then return end
+	running = true
+	task.spawn(function()
+		while running do
+			task.wait(1)
+			if not running then break end
+			if seconds < 59 then seconds += 1 else seconds = 0; minutes += 1; end
+			
+			local stringSeconds: string = seconds >= 10 and tostring(seconds) or "0"..tostring(seconds)
+			local timerString: string = tostring(minutes)..":"..stringSeconds
+			matchStats.Time.Value = timerString
+			
+			if minutes >= 8 then
+				running = false
+				lastAttack = true
+				gameEvents:Fire("Last Attack")
+				break
+			end
+		end
+	end)
+end
+
+function TimerModule:Pause()
+	if lastAttack then return end
+	running = false
+	local stringSeconds: string = seconds >= 10 and tostring(seconds) or "0"..tostring(seconds)
+	matchStats.Time.Value = "P "..tostring(minutes)..":"..stringSeconds
+end
+
+function TimerModule:Reset()
+	lastAttack = false
+	running = false
+	minutes, seconds = 0, 0
+	matchStats.Time.Value = "P 0:00"
+end
+
+function TimerModule:SetLAText(side: "Home" | "Away")
+	matchStats.Time.Value = "LA - "..side
+end
+
+function TimerModule:GetLA(): boolean
+	return lastAttack
+end
+
+Players.PlayerRemoving:Connect(function()
+	if #Players:GetPlayers() < MINIMUM_PLAYERS then
+		running = false
+		lastAttack = true
+		gameEvents:Fire("Last Attack")
+	end
+end)
+
+return TimerModule]]></ProtectedString>
+					<string name="ScriptGuid">{2D89F401-EDCD-4128-8238-EF2DB00B5257}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">TimerModule</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+		</Item>
+		<Item class="ModuleScript" referent="RBX9D4EB480C2D34C4E8AA5710447BE83D3">
+			<Properties>
+				<Content name="LinkedSource"><null></null></Content>
+				<ProtectedString name="Source"><![CDATA[type BallObject = {
+	Instance: BasePart,
+	CanTouch: boolean,
+	SetPiece: "Home" | "Away",
+	Data: {
+		["LastShoot"]: ObjectValue,
+		["PlayerOnBall"]: ObjectValue,
+		["LastShootShoot"]: ObjectValue,
+		["LastPlayerOnBall"]: ObjectValue
+	}
+}
+
+local BallService = {}
+BallService.__index = BallService
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
+local Players = game:GetService("Players")
+local HTTPService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local Utils = ReplicatedStorage:WaitForChild("Utils")
+local Maid = require(Utils:WaitForChild("Maid"))
+local Weld = require(script:WaitForChild("Weld"))
+local Kick = require(script:WaitForChild("Kick"))
+local Offside = require(script:WaitForChild("Offside"))
+local NoDelay = require(script:WaitForChild("NoDelay"))
+local Ping = require(script:WaitForChild("Ping"))
+local TimerModule = require(ServerScriptService:WaitForChild("Services"):WaitForChild("RefereeService"):WaitForChild("TimerModule"))
+
+local GAMEINFO_FOLDER = ReplicatedStorage:WaitForChild("GameInfo")
+local gameEvents = ReplicatedStorage:WaitForChild("Bindable"):WaitForChild("GameEvents")
+
+local ballMaid = Maid.new()
+local keeperWeldMaid = Maid.new()
+local ballsFolder: Folder = workspace:WaitForChild("Core"):WaitForChild("Balls")
+local matchValue: StringValue = workspace:WaitForChild("Core"):WaitForChild("Stats"):WaitForChild("Match")
+
+local keeperGrip = CFrame.new(0,-0.5,-1.1)
+local grip = CFrame.new(0,-2,-1.5)
+local BOX_POSITION_Z = 219
+local BOX_POSITION_X = 110
+local GOALKICK_ZAXIS = 266.5
+local GOALKICK_PART = ServerStorage:WaitForChild("GameSourceServer"):WaitForChild("GoalKick")
+
+local ballsTable = {}
+local ballHoldTime = {}
+
+function CheckPlayerInBox(player: Player)
+	local character = player.Character or player.CharacterAdded:Wait()
+	
+	local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+	local box = player.Team.Name:find("Home") and 1 or 0
+
+	if box > 0 then
+		return (humanoidRootPart.Position.X < BOX_POSITION_X and 
+			humanoidRootPart.Position.X > -BOX_POSITION_X and 
+			humanoidRootPart.Position.Z > BOX_POSITION_Z)
+	else
+		return (humanoidRootPart.Position.X < BOX_POSITION_X and 
+			humanoidRootPart.Position.X > -BOX_POSITION_X and 
+			humanoidRootPart.Position.Z < -BOX_POSITION_Z)
+	end
+end
+
+function DeleteAllSetPieces(ballObject: BallObject)
+	if workspace:FindFirstChild("Home") then
+		workspace.Home:Destroy()
+	end
+	if workspace:FindFirstChild("Away") then
+		workspace.Away:Destroy()
+	end
+	if ballObject.Instance:FindFirstChild("SetPiece") then
+		ballObject.Instance.SetPiece:Destroy()
+	end
+	if ballObject.Instance:FindFirstChild("GoalKick") then
+		ballObject.Instance.GoalKick:Destroy()
+	end
+	ballObject.SetPiece = nil
+end
+
+function BallService.new(spawning: Player | Vector3, setPiece: "Home" | "Away"): BallObject
+	local self: BallObject = setmetatable({}, BallService)
+
+	local newBall: BallInstance = ServerStorage:WaitForChild("Ball"):Clone()
+	newBall.Name = HTTPService:GenerateGUID()
+	
+	newBall:SetAttribute("Picked", false)
+	
+	newBall.CollisionGroup = "Ball"
+	if typeof(spawning) == "Instance" then
+		newBall.CFrame = spawning.Character.HumanoidRootPart.CFrame
+	else
+		newBall.Position = spawning
+	end
+	newBall.Parent = ballsFolder
+	self.Instance = newBall
+	self.CanTouch = true
+	self.Data = {}
+	self.SetPiece = setPiece
+	self.Data.LastShoot = Instance.new("ObjectValue")
+	self.Data.PlayerOnBall = Instance.new("ObjectValue")
+	self.Data.LastShootShoot = Instance.new("ObjectValue")
+	self.Data.LastPlayerOnBall = Instance.new("ObjectValue")
+	
+	local flicks = 0
+	
+	local function onTouch(player: Player, intDistance: number)
+		if not player then return end
+		if not self.CanTouch then return end
+		if not player.Character then return end
+		if not player.Character:FindFirstChild("Humanoid") or player.Character.Humanoid.Health <= 0 then return end
+		if player.Character:FindFirstChild("HumanoidRootPart") and player.Character.HumanoidRootPart:FindFirstChild("BallWeld") then return end
+		if matchValue.Value ~= "Training" and not string.find(player.Team.Name, "Home") and not string.find(player.Team.Name, "Away") and not string.find(player.Team.Name, "Officials") then return end
+		if newBall:GetAttribute("Picked") then return end
+				
+		self.CanTouch = false
+		local Tackled = false
+		if self.Data.PlayerOnBall.Value ~= nil then
+			local existingWeld: Weld = self.Data.PlayerOnBall.Value and self.Data.PlayerOnBall.Value.Character.HumanoidRootPart:FindFirstChild("BallWeld")
+			
+			if existingWeld and existingWeld.Part1 then
+				local targetPlayer = Players:GetPlayerFromCharacter(existingWeld.Part1.Parent)
+				if targetPlayer and targetPlayer ~= player then
+					existingWeld:Destroy()
+					self.Data.LastPlayerOnBall.Value = targetPlayer
+				end
+			end
+		end
+		
+		if newBall:FindFirstChild("BodyForce") then newBall.BodyForce:Destroy() end
+		Weld(newBall, player.Character)
+		self.Data.PlayerOnBall.Value = player
+		if newBall:FindFirstChild("Trail") then
+			newBall.Trail.Color = ColorSequence.new(player.TeamColor.Color)
+		end
+		
+		if self.Data.LastShoot.Value ~= player then
+			ballHoldTime[player] = os.clock()
+		end
+		
+		if not Tackled and self.Data.LastShoot.Value == player then
+			flicks += 1
+		else
+			flicks = 0
+		end
+		
+		if flicks > 3 then
+			local ballPosition = self.Instance.Position
+			gameEvents:Fire("Flick Spam", self.Data.PlayerOnBall.Value, ballPosition, self.Instance)
+		end
+		
+		--[[
+		if not Tackled and self.Data.LastShoot.Value == player then
+			task.wait(0.3)
+		else
+			task.wait(0.5)
+		end
+		--]]
+		task.wait(0.5)
+		
+		self.CanTouch = true
+	end
+	
+	local function HandleGoalkeeperPosession(homePosession: boolean)
+		local setPiecePart = GOALKICK_PART:Clone()
+		setPiecePart.BrickColor = homePosession and BrickColor.new("Really blue") or BrickColor.new("Really red")
+		setPiecePart.Position = homePosession and Vector3.new(0, 0.5, GOALKICK_ZAXIS) or Vector3.new(0, 0.5, -GOALKICK_ZAXIS)	
+		
+		gameEvents:Fire("Goalkeeper Possession", setPiecePart, newBall)
+	end
+	
+	ballMaid:GiveTask(newBall.Touched:Connect(function(partThatTouched: BasePart)
+		local distance = (newBall.Position - partThatTouched.Position).Magnitude
+		local player: Player? = Players:GetPlayerFromCharacter(partThatTouched.Parent)
+		
+		if not player then return end
+		if partThatTouched.Name:find("Arm") and not player.Team.Name:find("Goalkeeper") then
+			return 
+		end
+		if player.Character:FindFirstChild("HumanoidRootPart") and player.Character.HumanoidRootPart:FindFirstChild("BallWeld") then return end
+		if not self.CanTouch then return end
+		if self.SetPiece == "Home" and player.Team.Name:find("Away") then return end
+		if self.SetPiece == "Away" and player.Team.Name:find("Home") then return end
+		if self.Data.PlayerOnBall.Value ~= nil then
+			if self.SetPiece == "Home" and player.Team.Name:find("Home") then
+				DeleteAllSetPieces(self)
+			elseif self.SetPiece == "Away" and player.Team.Name:find("Away") then
+				DeleteAllSetPieces(self)
+			end
+		end
+		if player.leaderstats.Ping.Value >= 500 then return end
+		
+		local intDistance = math.floor(distance * 10) / 10
+		onTouch(player, intDistance)
+	end))
+	
+	newBall.BallRemote.OnServerEvent:Connect(function(player, argument)
+		if not player.Character:FindFirstChild("KeeperTool") then return end
+		if not player.Character:FindFirstChild("HumanoidRootPart") then return end
+		if not player.Character.HumanoidRootPart:FindFirstChild("BallWeld") then return end
+		if player.Character.HumanoidRootPart.BallWeld.Part0 ~= newBall then return end
+		if argument ~= "Keeper" then return end
+		if player.Team.Name:find("Home") and self.Data.LastPlayerOnBall.Value and self.Data.LastPlayerOnBall.Value.Team.Name:find("Home") then return end
+		if player.Team.Name:find("Away") and self.Data.LastPlayerOnBall.Value and self.Data.LastPlayerOnBall.Value.Team.Name:find("Away") then return end
+		keeperWeldMaid:Destroy()
+		
+		
+		newBall:SetAttribute("Picked", true)
+		player.Character.HumanoidRootPart.BallWeld.C1 = keeperGrip
+		HandleGoalkeeperPosession(player.Team.Name:find("Home"))
+
+		local thread = task.spawn(function()
+			local seconds = 8
+			newBall.KeeperSeconds.Enabled = true
+			newBall.KeeperSeconds.Counter.Text = seconds
+			
+			while seconds > 0 do
+				task.wait(1)
+				seconds -= 1
+				newBall.KeeperSeconds.Counter.Text = seconds
+			end
+			
+			newBall.KeeperSeconds.Enabled = false
+			newBall:SetAttribute("Picked", false)
+			player.Character.HumanoidRootPart.BallWeld.C1 = grip
+			if newBall:FindFirstChild("GoalKick") then
+				newBall.GoalKick:Destroy()
+			end
+		end)
+		
+		keeperWeldMaid:GiveTask(RunService.Stepped:Connect(function()
+			local playerIsInBox = CheckPlayerInBox(player)
+			if not playerIsInBox then
+				newBall.KeeperSeconds.Enabled = false
+				keeperWeldMaid:Destroy()
+				task.cancel(thread)
+				newBall:SetAttribute("Picked", false)
+				player.Character.HumanoidRootPart.BallWeld.C1 = grip
+				if newBall:FindFirstChild("GoalKick") then
+					newBall.GoalKick:Destroy()
+				end
+			end
+		end))
+		
+		keeperWeldMaid:GiveTask(player.Character.HumanoidRootPart.ChildRemoved:Connect(function(child: Weld)
+			if child.Name ~= "BallWeld" then return end
+			newBall.KeeperSeconds.Enabled = false
+			keeperWeldMaid:Destroy()
+			task.cancel(thread)
+			if newBall:FindFirstChild("GoalKick") then
+				newBall.GoalKick:Destroy()
+			end
+		end))
+	end)
+	
+	task.spawn(Offside, self)
+	task.spawn(NoDelay, self.Instance)
+	-- task.spawn(Ping, self)
+	
+	ballsTable[newBall] = {}
+	ballsTable[newBall].self = self
+	return self
+end
+
+function BallService:Clear()
+	ballsFolder:ClearAllChildren()
+	for _, player: Player in pairs(Players:GetPlayers()) do
+		if not player.Character then continue end
+		if not player.Character:FindFirstChild("HumanoidRootPart") then continue end
+		if not player.Character.HumanoidRootPart:FindFirstChild("BallWeld") then continue end
+		player.Character.HumanoidRootPart.BallWeld:Destroy()
+	end
+	ballMaid:Destroy()
+	table.clear(ballHoldTime)
+	table.clear(ballsTable)
+end
+
+function BallService:Kick(player: Player, BallInstance: BasePart, Properties: ShootProperties)
+	if not ballsTable[BallInstance] then return end
+	local ballObject = ballsTable[BallInstance].self
+	local totalTimeWithTheBall = ballHoldTime[player]
+	
+	local velocity, releasePosition, isDriven = Kick.new(ballObject.Instance, player.Character, Properties, totalTimeWithTheBall)
+	if not velocity or not releasePosition then return end
+	if ballObject.Instance:GetAttribute("Picked") then
+		ballObject.Instance:SetAttribute("Picked", false)
+	end
+	
+	GAMEINFO_FOLDER.Taker.Value = ""
+	if player:GetAttribute("SetPiece") == true then
+		player:SetAttribute("SetPiece", false)
+		TimerModule:Resume()
+	end
+	DeleteAllSetPieces(ballObject)
+	
+	
+	if player.Character:FindFirstChild("HumanoidRootPart"):FindFirstChild("BallWeld") then 
+		player.Character.HumanoidRootPart.BallWeld:Destroy() 
+	end
+	ballObject.Instance.Kick:Play()
+	ballObject.Data.PlayerOnBall.Value = nil
+	
+	if isDriven then
+		task.spawn(function()
+			Kick:HandleDriven(ballObject.Instance)
+		end)
+	end
+	
+	ballObject.Data.LastPlayerOnBall.Value = player
+	if ballObject.Data.LastShoot.Value ~= ballObject.Data.LastShootShoot.Value then
+		ballObject.Data.LastShootShoot.Value = ballObject.Data.LastShoot.Value
+	end
+	ballObject.Data.LastShoot.Value = player
+	ballObject.Instance.Position = releasePosition
+	ballObject.Instance.AssemblyAngularVelocity = Vector3.new()
+	ballObject.Instance.AssemblyLinearVelocity = velocity
+end
+
+function BallService:RemoveWeld()
+	if self.Data.PlayerOnBall.Value ~= nil then
+		local existingWeld: Weld = self.Data.PlayerOnBall.Value.Character.HumanoidRootPart:FindFirstChild("BallWeld")
+
+		if existingWeld and existingWeld.Part1 then
+			local targetPlayer = Players:GetPlayerFromCharacter(existingWeld.Part1.Parent)
+			if targetPlayer then
+				existingWeld:Destroy()
+				self.Data.LastPlayerOnBall.Value = targetPlayer
+			end
+		end
+	end
+end
+
+function BallService:GetBall(part: BasePart): BallObject
+	if not ballsTable[part] then return end
+	return ballsTable[part].self
+end
+
+function BallService:RemoveSetPiece()
+	self.SetPiece = nil
+end
+
+function BallService:RemoveAllBallsSetPiece()
+	for _, ball in pairs(ballsTable) do
+		ball.self.SetPiece = nil
+	end
+end
+
+return BallService
+]]></ProtectedString>
+				<string name="ScriptGuid">{39403CF3-7699-48D7-9E06-439C1CB939D1}</string>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">BallService</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+			<Item class="ModuleScript" referent="RBX0114E02C740E4E1499745C9D23503D9A">
+				<Properties>
+					<Content name="LinkedSource"><null></null></Content>
+					<ProtectedString name="Source"><![CDATA[type BallObject = {
+	Instance: BasePart,
+	CanTouch: boolean,
+	Data: {
+		["LastShoot"]: ObjectValue,
+		["PlayerOnBall"]: ObjectValue,
+		["LastShootShoot"]: ObjectValue,
+		["LastPlayerOnBall"]: ObjectValue
+	}
+}
+
+local Teams = game:GetService("Teams")
+local ServerStorage = game:GetService("ServerStorage")
+local Debris = game:GetService("Debris")
+local ServerScriptService = game:GetService("ServerScriptService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local matchStats: Folder = workspace:WaitForChild("Core"):WaitForChild("Stats")
+local matchValue: StringValue = matchStats:WaitForChild("Match")
+local swapped: BoolValue = matchStats:WaitForChild("Switched")
+local attackerBrick: BasePart = ServerStorage:WaitForChild("Offside"):WaitForChild("AttackerPosition")
+local defenderBrick: BasePart = ServerStorage:WaitForChild("Offside"):WaitForChild("DefenderPosition")
+
+local gameEvents = ReplicatedStorage:WaitForChild("Bindable"):WaitForChild("GameEvents")
+
+local MINIMUM_OFFSIDE_DISTANCE: number = 1
+local BOX_POSITION: number = 207.5
+
+function GetLastPlayerPosition(positions: {[Player]: number}, isPositive: boolean): number
+	if isPositive then
+		local highestPosition: number = -math.huge
+		
+		for player: Player, position: number in pairs(positions) do
+			if position < highestPosition then continue end
+			highestPosition = position
+		end
+		
+		return highestPosition > 0 and highestPosition or 0
+	else
+		local lowestPosition: number = math.huge
+		
+		for player: Player, position: number in pairs(positions) do
+			if position > lowestPosition then continue end
+			lowestPosition = position
+		end
+
+		return lowestPosition < 0 and lowestPosition or 0
+	end
+end
+
+function GetPositionToCompare(firstPosition: number, secondPosition: number, isMore: boolean): number
+	if isMore then
+		return firstPosition > secondPosition and firstPosition or secondPosition
+	else
+		return firstPosition < secondPosition and firstPosition or secondPosition
+	end
+end
+
+function GenerateOffsidesLines(attackerPosition: number, defenderPosition: number)
+	local attBrick = attackerBrick:Clone()
+	local defBrick = defenderBrick:Clone()
+
+	attBrick.Position = Vector3.new(attackerPosition, .5, 0)
+	defBrick.Position = Vector3.new(defenderPosition, .5, 0)
+
+	attBrick.Parent = workspace
+	defBrick.Parent = workspace
+
+	Debris:AddItem(attBrick, 5)
+	Debris:AddItem(defBrick, 5)
+end
+
+function GetValueByItsIndex(givenTable, value)
+	for i, v in pairs(givenTable) do
+		if i ~= value then continue end
+		return v
+	end
+	
+	return nil
+end
+
+function HandleOffsideAutomatic(homePosession: boolean, position: number)
+	gameEvents:Fire("Offside", homePosession, position)
+end
+
+type OffsideProperties = {
+	currentPlayerPosition: number,
+	resetCallback: () -> void,
+	oppositeTeam: string,
+	oppositeTeamPositions: {[Player]: number},
+	currentBallPosition: number,
+	checkByHighest: boolean
+}
+
+function CheckForOffside(offsideProperties: OffsideProperties)
+	local oppositeGoalkeeper: Player = Teams["-"..offsideProperties.oppositeTeam.." Goalkeeper"]:GetPlayers()[1]
+	
+	if offsideProperties.checkByHighest then
+		if offsideProperties.currentPlayerPosition < 1 then offsideProperties.resetCallback() return end
+		local highestPosition: number = GetLastPlayerPosition(offsideProperties.oppositeTeamPositions, true)
+
+		if not oppositeGoalkeeper or oppositeGoalkeeper and oppositeGoalkeeper.Character.HumanoidRootPart.Position.X > BOX_POSITION then
+			if offsideProperties.currentPlayerPosition > highestPosition and offsideProperties.currentPlayerPosition > offsideProperties.currentBallPosition then
+				task.spawn(HandleOffsideAutomatic, offsideProperties.oppositeTeam == "Home", offsideProperties.currentPlayerPosition)
+				GenerateOffsidesLines(offsideProperties.currentPlayerPosition, highestPosition)
+			end
+		elseif oppositeGoalkeeper.Character.HumanoidRootPart.Position.X < BOX_POSITION then
+			local goalkeeperPosition: number = oppositeGoalkeeper.Character.HumanoidRootPart.Position.X
+			if offsideProperties.currentPlayerPosition > goalkeeperPosition and offsideProperties.currentPlayerPosition > highestPosition and offsideProperties.currentPlayerPosition > offsideProperties.currentBallPosition then
+				local lastPosition: number = GetPositionToCompare(highestPosition, goalkeeperPosition, true)
+				task.spawn(HandleOffsideAutomatic, offsideProperties.oppositeTeam == "Home", offsideProperties.currentPlayerPosition)
+				GenerateOffsidesLines(offsideProperties.currentPlayerPosition, lastPosition)
+			end
+		end
+	else
+		if offsideProperties.currentPlayerPosition > 1 then offsideProperties.resetCallback() return end
+		local lowestPosition: number = GetLastPlayerPosition(offsideProperties.oppositeTeamPositions, false)	
+		
+		if not oppositeGoalkeeper or oppositeGoalkeeper and oppositeGoalkeeper.Character.HumanoidRootPart.Position.X < -BOX_POSITION then
+			if offsideProperties.currentPlayerPosition < lowestPosition and offsideProperties.currentPlayerPosition < offsideProperties.currentBallPosition then
+				task.spawn(HandleOffsideAutomatic, offsideProperties.oppositeTeam == "Home", offsideProperties.currentPlayerPosition)
+				GenerateOffsidesLines(offsideProperties.currentPlayerPosition, lowestPosition)
+			end
+		elseif oppositeGoalkeeper.Character.HumanoidRootPart.Position.X > -BOX_POSITION then
+			local goalkeeperPosition: number = oppositeGoalkeeper.Character.HumanoidRootPart.Position.X
+			if offsideProperties.currentPlayerPosition < goalkeeperPosition and offsideProperties.currentPlayerPosition < lowestPosition and offsideProperties.currentPlayerPosition < offsideProperties.currentBallPosition then
+				local lastPosition: number = GetPositionToCompare(lowestPosition, goalkeeperPosition, false)
+				task.spawn(HandleOffsideAutomatic, offsideProperties.oppositeTeam == "Home", offsideProperties.currentPlayerPosition)
+				GenerateOffsidesLines(offsideProperties.currentPlayerPosition, lastPosition)
+			end
+		end
+	end
+end
+
+return function (ballObject: BallObject)
+	local playerOnBall = ballObject.Data.PlayerOnBall
+	local lastShoot = ballObject.Data.LastShoot
+	
+	local homePositions: {[Player]: number} = {}
+	local awayPositions: {[Player]: number} = {}
+	local ballPosition: number = ballObject.Instance.Position.X
+	
+	local function reset()
+		table.clear(homePositions)
+		table.clear(awayPositions)
+		ballPosition = ballObject.Instance.Position.X
+	end
+	
+	-- Stores Position
+	lastShoot:GetPropertyChangedSignal("Value"):Connect(function()
+		reset()
+		if not lastShoot.Value then return end
+		for _, player: Player in pairs(Teams.Home:GetPlayers()) do
+			if not player.Character then continue end
+			if not player.Character.HumanoidRootPart then continue end
+			homePositions[player] = player.Character.HumanoidRootPart.Position.X
+		end
+		
+		for _, player: Player in pairs(Teams.Away:GetPlayers()) do
+			if not player.Character then continue end
+			if not player.Character.HumanoidRootPart then continue end
+			awayPositions[player] = player.Character.HumanoidRootPart.Position.X
+		end
+		
+		ballPosition = ballObject.Instance.Position.X
+	end)
+	
+	-- Compares Position
+	playerOnBall:GetPropertyChangedSignal("Value"):Connect(function()
+		local currentPlayerOnBall: Player | nil = playerOnBall.Value
+		local currentLastShoot: Player | nil = lastShoot.Value
+		
+		if matchValue.Value == "Training" then reset() return end
+		if currentPlayerOnBall == nil or currentLastShoot == nil then reset() return end
+		if currentPlayerOnBall == currentLastShoot then reset() return end
+		if (#Teams.Home:GetPlayers() + #Teams["-Home Goalkeeper"]:GetPlayers()) < 1 or (#Teams.Away:GetPlayers() + #Teams["-Away Goalkeeper"]:GetPlayers()) < 1 then reset() return end
+		if (currentPlayerOnBall.Team.Name == "Home" or currentPlayerOnBall.Team.Name == "-Home Goalkeeper") then
+			if (currentLastShoot.Team.Name ~= "Home" and currentLastShoot.Team.Name ~= "-Home Goalkeeper") then reset() return end
+		end
+		if (currentPlayerOnBall.Team.Name == "Away" or currentPlayerOnBall.Team.Name == "-Away Goalkeeper") then
+			if (currentLastShoot.Team.Name ~= "Away" and currentLastShoot.Team.Name ~= "-Away Goalkeeper") then reset() return end
+		end
+		
+		local currentPlayerPosition: number = GetValueByItsIndex(homePositions, currentPlayerOnBall) or GetValueByItsIndex(awayPositions, currentPlayerOnBall)
+		--local currentLastShootPosition: number = GetValueByItsIndex(homePositions, currentLastShoot) or GetValueByItsIndex(awayPositions, currentLastShoot)
+		
+		if not currentPlayerPosition then return end
+		--if not currentPlayerOnBall or not currentLastShoot then return end
+		print("passed")
+		
+		if not swapped.Value then
+			if currentPlayerOnBall.Team.Name:find("Home") and not currentPlayerOnBall.Team.Name:find("@") then
+				CheckForOffside({
+					currentPlayerPosition = currentPlayerPosition,
+					resetCallback = reset,
+					oppositeTeam = "Away",
+					oppositeTeamPositions = awayPositions,
+					currentBallPosition = ballPosition,
+					checkByHighest = false
+				})
+			elseif currentPlayerOnBall.Team.Name:find("Away") and not currentPlayerOnBall.Team.Name:find("@") then
+				CheckForOffside({
+					currentPlayerPosition = currentPlayerPosition,
+					resetCallback = reset,
+					oppositeTeam = "Home",
+					oppositeTeamPositions = homePositions,
+					currentBallPosition = ballPosition,
+					checkByHighest = true
+				})
+			end
+		else
+			if currentPlayerOnBall.Team.Name:find("Home") and not currentPlayerOnBall.Team.Name:find("@") then
+				CheckForOffside({
+					currentPlayerPosition = currentPlayerPosition,
+					resetCallback = reset,
+					oppositeTeam = "Away",
+					oppositeTeamPositions = awayPositions,
+					currentBallPosition = ballPosition,
+					checkByHighest = true
+				})
+			elseif currentPlayerOnBall.Team.Name:find("Away") and not currentPlayerOnBall.Team.Name:find("@") then
+				CheckForOffside({
+					currentPlayerPosition = currentPlayerPosition,
+					resetCallback = reset,
+					oppositeTeam = "Home",
+					oppositeTeamPositions = homePositions,
+					currentBallPosition = ballPosition,
+					checkByHighest = false
+				})
+			end
+		end
+		
+		reset()
+	end)
+end]]></ProtectedString>
+					<string name="ScriptGuid">{C37AAFED-9520-471C-87D0-14C3A9C3254C}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">Offside</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX76CF8817024C41209CFCC3267566CEC9">
+				<Properties>
+					<Content name="LinkedSource"><null></null></Content>
+					<ProtectedString name="Source"><![CDATA[type ShootProperties = {
+	Shoot: "L Click" | "R Click" | "L/R Click",
+	Power: number,
+	Direction: Vector3,
+}
+
+type Shoots = "L Click" | "R Click" | "L/R Click"
+
+local Kick = {}
+
+local PowerAttributes = {
+	["L Click"] = 50,
+	["R Click"] = 25,
+	["Y Axis Buffer"] = 90,
+	["Default Power Buff"] = 120,
+	["Driven Multiplier"] = 50,
+	["Driven Power Modifier"] = 3
+}
+
+function ReleaseBall(BallInstance: MeshPart, Torso: BasePart): Vector3
+	local lookVector: Vector3 = Torso.CFrame.LookVector.Unit
+	local releaseBuffer: number = 6
+	local decim: number = math.abs(lookVector.X) + math.abs(lookVector.Z)
+	
+	local xPosition: number = (lookVector.X/decim) * releaseBuffer
+	local zPosition: number = (lookVector.Z/decim) * releaseBuffer
+	
+	return Vector3.new(BallInstance.Position.X + xPosition, BallInstance.Position.Y, BallInstance.Position.Z + zPosition)
+end
+
+function calculatePower(ShootType: Shoots, Charged: number): (number, number)
+	local power, powerY
+	local finalPower = (Charged / 100) * 3
+	
+	if ShootType ~= "L/R Click" then
+		power = (PowerAttributes[ShootType] / 3) * finalPower + PowerAttributes["Default Power Buff"]
+	else
+		power = (finalPower/3) * PowerAttributes["Driven Power Modifier"]
+	end
+	
+	if ShootType == "R Click" then
+		powerY = 2 * finalPower + PowerAttributes["Y Axis Buffer"]
+	end
+		
+	return power, powerY
+end
+
+function Kick.new(BallInstance: MeshPart, Character: Model, Properties: ShootProperties, ballHoldTime: number): (Vector3, Vector3)
+	local releasePosition = ReleaseBall(BallInstance, Character.Torso)
+	
+	if ballHoldTime and (os.clock() - ballHoldTime) < 0.25 then
+		Properties.Power *= 1.15
+	end
+	
+	local power, powerY = calculatePower(Properties.Shoot, Properties.Power)
+	
+	
+	if Properties.Shoot == "L Click" then
+		local Velocity = Properties.Direction * power
+		return Velocity, releasePosition
+	elseif Properties.Shoot == "R Click" then
+		local Velocity = Properties.Direction * Vector3.new(power, 0, power) + Vector3.new(0, powerY, 0)
+		return Velocity, releasePosition
+	elseif Properties.Shoot == "L/R Click" then
+		local Velocity = Vector3.new(Properties.Direction.X, 0.25, Properties.Direction.Z) * 2.25 * (PowerAttributes["Driven Multiplier"] + power)
+		return Velocity, releasePosition, true	
+	end
+end
+
+function Kick:HandleDriven(Ball)
+	local BodyForce = Instance.new("BodyForce")
+	BodyForce.Force = Vector3.new(0, (Ball:GetMass() * 196.2) * 0.75, 0)
+	BodyForce.Parent = Ball
+	task.wait(0.5)
+	local cancelDriven
+	cancelDriven = Ball.Touched:Connect(function(hit)
+		if hit.Name == "Field" then
+			if BodyForce then
+				BodyForce:Destroy()
+				cancelDriven:Disconnect()
+			end
+		end
+	end)
+end
+
+return Kick
+]]></ProtectedString>
+					<string name="ScriptGuid">{F549D3D8-079A-43BF-94C7-8B0F0294E802}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">Kick</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBXB7B2C8FB8EAA436F9A4C30DA194C54AF">
+				<Properties>
+					<Content name="LinkedSource"><null></null></Content>
+					<ProtectedString name="Source"><![CDATA[local PlayerTypes = require(game:GetService("ReplicatedStorage"):WaitForChild("Types"):WaitForChild("PlayerTypes"))
+local grip: CFrame = CFrame.new(0,-2,-1.5)
+local keeperGrip: CFrame = CFrame.new(-1.1,-1.25,0)
+
+return function(BallInstance: MeshPart, Character: PlayerTypes.Character)
+	local newWeld: Weld = Instance.new("Weld")
+	newWeld.Name = "BallWeld"
+	newWeld.Part0 = BallInstance
+	newWeld.Part1 = Character.HumanoidRootPart
+	newWeld.C1 = grip
+	newWeld.Parent = Character.HumanoidRootPart	
+end]]></ProtectedString>
+					<string name="ScriptGuid">{8B6FD20C-D3A8-46A5-863D-54AA726E56CF}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">Weld</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX1834FFEA02094E3CB3B9BCA40F9E5AE0">
+				<Properties>
+					<Content name="LinkedSource"><null></null></Content>
+					<ProtectedString name="Source"><![CDATA[local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HTTPService = game:GetService("HttpService")
+local TweenService = game:GetService("TweenService")
+
+local Utils = ReplicatedStorage:WaitForChild("Utils")
+local Maid = require(Utils:WaitForChild("Maid"))
+
+local ghostBall = script.Ghost
+
+return function(BallInstance: BasePart)
+	local RealtimeMaid = Maid.new()
+	local noDelayBall = ghostBall:Clone()
+	noDelayBall.Name = HTTPService:GenerateGUID()
+	noDelayBall.Parent = workspace:WaitForChild("Core"):WaitForChild("NoDelay")
+	
+	BallInstance:GetPropertyChangedSignal("Parent"):Connect(function()
+		if not BallInstance:IsDescendantOf(workspace) then
+			RealtimeMaid:Destroy()
+			if noDelayBall then
+				noDelayBall:Destroy()
+			end
+		end
+	end)
+	
+	RealtimeMaid:GiveTask(RunService.Stepped:Connect(function()
+		local goal = {}
+		goal.Position = BallInstance.Position
+		
+		TweenService:Create(noDelayBall, TweenInfo.new(.125), goal):Play()
+	end))
+end]]></ProtectedString>
+					<string name="ScriptGuid">{FDD7B5E9-4DDB-473B-8215-1E30ECDC9F86}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">NoDelay</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+				<Item class="Part" referent="RBX90399BF2E9A4468B9D9C8ED482479035">
+					<Properties>
+						<token name="shape">0</token>
+						<token name="formFactorRaw">1</token>
+						<bool name="Anchored">true</bool>
+						<bool name="AudioCanCollide">true</bool>
+						<float name="BackParamA">-0.5</float>
+						<float name="BackParamB">0.5</float>
+						<token name="BackSurface">0</token>
+						<token name="BackSurfaceInput">0</token>
+						<float name="BottomParamA">-0.5</float>
+						<float name="BottomParamB">0.5</float>
+						<token name="BottomSurface">0</token>
+						<token name="BottomSurfaceInput">0</token>
+						<CoordinateFrame name="CFrame">
+							<X>-159</X>
+							<Y>1.5</Y>
+							<Z>-14</Z>
+							<R00>1</R00>
+							<R01>0</R01>
+							<R02>0</R02>
+							<R10>0</R10>
+							<R11>1</R11>
+							<R12>0</R12>
+							<R20>0</R20>
+							<R21>0</R21>
+							<R22>1</R22>
+						</CoordinateFrame>
+						<bool name="CanCollide">false</bool>
+						<bool name="CanQuery">true</bool>
+						<bool name="CanTouch">false</bool>
+						<bool name="CastShadow">true</bool>
+						<string name="CollisionGroup">Default</string>
+						<int name="CollisionGroupId">0</int>
+						<Color3uint8 name="Color3uint8">4288914085</Color3uint8>
+						<PhysicalProperties name="CustomPhysicalProperties">
+							<CustomPhysics>true</CustomPhysics>
+							<Density>0.699999988</Density>
+							<Friction>0.300000012</Friction>
+							<Elasticity>1</Elasticity>
+							<FrictionWeight>1</FrictionWeight>
+							<ElasticityWeight>1</ElasticityWeight>
+							<AcousticAbsorption>1</AcousticAbsorption>
+						</PhysicalProperties>
+						<bool name="EnableFluidForces">true</bool>
+						<float name="FrontParamA">-0.5</float>
+						<float name="FrontParamB">0.5</float>
+						<token name="FrontSurface">0</token>
+						<token name="FrontSurfaceInput">0</token>
+						<float name="LeftParamA">-0.5</float>
+						<float name="LeftParamB">0.5</float>
+						<token name="LeftSurface">0</token>
+						<token name="LeftSurfaceInput">0</token>
+						<bool name="Locked">false</bool>
+						<bool name="Massless">true</bool>
+						<token name="Material">256</token>
+						<string name="MaterialVariantSerialized"></string>
+						<CoordinateFrame name="PivotOffset">
+							<X>0</X>
+							<Y>0</Y>
+							<Z>0</Z>
+							<R00>1</R00>
+							<R01>0</R01>
+							<R02>0</R02>
+							<R10>0</R10>
+							<R11>1</R11>
+							<R12>0</R12>
+							<R20>0</R20>
+							<R21>0</R21>
+							<R22>1</R22>
+						</CoordinateFrame>
+						<float name="Reflectance">0</float>
+						<float name="RightParamA">-0.5</float>
+						<float name="RightParamB">0.5</float>
+						<token name="RightSurface">0</token>
+						<token name="RightSurfaceInput">0</token>
+						<int name="RootPriority">0</int>
+						<Vector3 name="RotVelocity">
+							<X>0</X>
+							<Y>0</Y>
+							<Z>0</Z>
+						</Vector3>
+						<float name="TopParamA">-0.5</float>
+						<float name="TopParamB">0.5</float>
+						<token name="TopSurface">0</token>
+						<token name="TopSurfaceInput">0</token>
+						<float name="Transparency">1</float>
+						<Vector3 name="Velocity">
+							<X>0</X>
+							<Y>0</Y>
+							<Z>0</Z>
+						</Vector3>
+						<Vector3 name="size">
+							<X>2</X>
+							<Y>2</Y>
+							<Z>2</Z>
+						</Vector3>
+						<BinaryString name="AttributesSerialize"></BinaryString>
+						<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+						<bool name="DefinesCapabilities">false</bool>
+						<string name="Name">Ghost</string>
+						<int64 name="SourceAssetId">-1</int64>
+						<BinaryString name="Tags"></BinaryString>
+					</Properties>
+					<Item class="Sound" referent="RBX919214A22E784629BE0F730236249C83">
+						<Properties>
+							<bool name="IsMutedForCapture">false</bool>
+							<NumberRange name="LoopRegion">0 60000 </NumberRange>
+							<bool name="Looped">false</bool>
+							<bool name="PlayOnRemove">false</bool>
+							<NumberRange name="PlaybackRegion">0 60000 </NumberRange>
+							<bool name="PlaybackRegionsEnabled">false</bool>
+							<float name="PlaybackSpeed">1</float>
+							<bool name="Playing">false</bool>
+							<float name="RollOffMaxDistance">250</float>
+							<float name="RollOffMinDistance">10</float>
+							<token name="RollOffMode">0</token>
+							<Ref name="SoundGroup">null</Ref>
+							<Content name="SoundId"><url>rbxassetid://9119330022</url></Content>
+							<double name="TimePosition">0</double>
+							<float name="Volume">0.5</float>
+							<BinaryString name="AttributesSerialize"></BinaryString>
+							<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+							<bool name="DefinesCapabilities">false</bool>
+							<string name="Name">Kick</string>
+							<int64 name="SourceAssetId">9119330022</int64>
+							<BinaryString name="Tags"></BinaryString>
+						</Properties>
+					</Item>
+					<Item class="Highlight" referent="RBX6D980530DA5B4F71AC10F154E4163072">
+						<Properties>
+							<Ref name="Adornee">null</Ref>
+							<token name="DepthMode">1</token>
+							<bool name="Enabled">true</bool>
+							<Color3 name="FillColor">
+								<R>1</R>
+								<G>0</G>
+								<B>0</B>
+							</Color3>
+							<float name="FillTransparency">0</float>
+							<Color3 name="OutlineColor">
+								<R>1</R>
+								<G>0</G>
+								<B>0</B>
+							</Color3>
+							<float name="OutlineTransparency">1</float>
+							<BinaryString name="AttributesSerialize"></BinaryString>
+							<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+							<bool name="DefinesCapabilities">false</bool>
+							<string name="Name">Highlight</string>
+							<int64 name="SourceAssetId">-1</int64>
+							<BinaryString name="Tags"></BinaryString>
+						</Properties>
+					</Item>
+				</Item>
+			</Item>
+			<Item class="ModuleScript" referent="RBX3FC98BBA0D81458EA1D38C159278E799">
+				<Properties>
+					<Content name="LinkedSource"><null></null></Content>
+					<ProtectedString name="Source"><![CDATA[type BallObject = {
+	Instance: BasePart,
+	CanTouch: boolean,
+	Data: {
+		["LastShoot"]: ObjectValue,
+		["PlayerOnBall"]: ObjectValue,
+		["LastShootShoot"]: ObjectValue,
+		["LastPlayerOnBall"]: ObjectValue
+	}
+}
+
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HTTPService = game:GetService("HttpService")
+local TweenService = game:GetService("TweenService")
+
+local Utils = ReplicatedStorage:WaitForChild("Utils")
+local Maid = require(Utils:WaitForChild("Maid"))
+
+return function(BallModel: BallObject)
+	local changedPingMaid = Maid.new()
+	
+	local ballOwner: Player? = nil
+	local oldPings = {}
+	local playerOnBall = BallModel.Data.PlayerOnBall
+	local lastPlayerOnBall = BallModel.Data.LastPlayerOnBall
+
+	BallModel.Instance:GetPropertyChangedSignal("Parent"):Connect(function()
+		if not BallModel.Instance:IsDescendantOf(workspace) then
+			changedPingMaid:Destroy()
+		end
+	end)
+
+	local function formatString(tbl: {number}, playerName: string): string
+		local formattedString		
+
+		if tbl[3] then
+			formattedString = ("%sms, %sms, %sms"):format(tbl[1], tbl[2], tbl[3])
+		elseif tbl[2] then
+			formattedString = ("%sms, %sms"):format(tbl[1], tbl[2])
+		else
+			formattedString = ("%sms"):format(tbl[1])
+		end
+
+		local finalString = ("%s - %s"):format(playerName, formattedString)
+
+		return finalString
+	end
+
+	local function handlePingTable(ping: number, playerName: string)
+		if #oldPings < 3 then
+			table.insert(oldPings, ping)
+		else
+			local newThirdPing = oldPings[2]
+			local newSecondPing = oldPings[1]
+			oldPings[3] = nil
+			oldPings[3] = newThirdPing
+			oldPings[2] = newSecondPing
+			oldPings[1] = ping
+		end
+
+		local formattedString = formatString(oldPings, playerName)
+		BallModel.Instance.Ping.Value = formattedString
+	end
+
+	local function HandleExistingPlayerOnBall(currentPlayerOnBall: Player)
+		changedPingMaid:Destroy()
+		local playerPing: NumberValue = currentPlayerOnBall.leaderstats.Ping
+		handlePingTable(playerPing.Value, currentPlayerOnBall.Name)
+		changedPingMaid:GiveTask(playerPing:GetPropertyChangedSignal("Value"):Connect(function()
+			handlePingTable(playerPing.Value, currentPlayerOnBall.Name)
+		end))
+	end
+
+
+	playerOnBall:GetPropertyChangedSignal("Value"):Connect(function()
+		local currentPlayerOnBall = playerOnBall.Value
+		if not currentPlayerOnBall then 
+			changedPingMaid:Destroy()
+			return 
+		end
+
+		if currentPlayerOnBall and lastPlayerOnBall.Value and currentPlayerOnBall.Name ~= lastPlayerOnBall.Value.Name then
+			changedPingMaid:Destroy()
+			table.clear(oldPings)
+		end
+
+		if currentPlayerOnBall then
+			HandleExistingPlayerOnBall(currentPlayerOnBall)
+		end
+	end)
+end]]></ProtectedString>
+					<string name="ScriptGuid">{A097F93A-A362-4442-89E1-9AEB341E39DE}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">Ping</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+		</Item>
+		<Item class="ModuleScript" referent="RBXA93148FE13C74043A8303BA490A05C40">
+			<Properties>
+				<Content name="LinkedSource"><null></null></Content>
+				<ProtectedString name="Source"><![CDATA[type PositionProperties = {
+	GK: Player?,
+	LB: Player?,
+	CB: Player?,
+	RB: Player?,
+	LCM: Player?,
+	RCM: Player?,
+	ST: Player?,
+	LW: Player?,
+	RW: Player?
+}
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local ServerScriptService = game:GetService("ServerScriptService")
+local Teams = game:GetService("Teams")
+local ServerStorage = game:GetService("ServerStorage")
+local Debris = game:GetService("Debris")
+
+local RefereeService = require(ServerScriptService:WaitForChild("Services"):WaitForChild("RefereeService"))
+local TimerModule = require(ServerScriptService:WaitForChild("Services"):WaitForChild("RefereeService"):WaitForChild("TimerModule"))
+local ShuffleTable = require(script:WaitForChild("ShuffleTable"))
+local GetKickOffPart = require(ServerScriptService:WaitForChild("Auto"):WaitForChild("Services"):WaitForChild("KickOffPart"))
+local SetPieceHandler = require(script:WaitForChild("SetPieceHandler"))
+local OrganizeTable = require(script:WaitForChild("OrganizeTable"))
+local BallService = require(ServerScriptService:WaitForChild("Services"):WaitForChild("BallService"))
+local Maid = require(ReplicatedStorage:WaitForChild("Utils"):WaitForChild("Maid"))
+local RunService = game:GetService("RunService")
+
+local SetPieceRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("SetPiece")
+local GameConfigFolder = ReplicatedStorage:WaitForChild("Config")
+
+local AutoService = {}
+
+local lastAttackMaid = Maid.new()
+
+local BALLS_FOLDER = workspace:WaitForChild("Core"):WaitForChild("Balls")
+local GAMEINFO_FOLDER = ReplicatedStorage:WaitForChild("GameInfo")
+local STATS_FOLDER = workspace:WaitForChild("Core"):WaitForChild("Stats")
+local DEFAULT_INTERMISSION_SECONDS = GameConfigFolder.INTERMISSION.Value -- 30
+local DEFAULT_POSITION_SELECT_SECONDS = GameConfigFolder.POSITION_SELECT_INTERMISSION.Value -- 30
+local MINIMUM_PLAYERS = GameConfigFolder.MINIMUM_PLAYERS.Value -- 2
+local POSITIONS_FOLDER = workspace:WaitForChild("Core"):WaitForChild("Positions")
+local SETPIECE_PART = ServerStorage:WaitForChild("GameSourceServer"):WaitForChild("SetPiece")
+local GOALKICK_PART = ServerStorage:WaitForChild("GameSourceServer"):WaitForChild("GoalKick")
+local GOALKICK_ZAXIS = 266.5
+
+local seconds = DEFAULT_INTERMISSION_SECONDS
+local initialized = GAMEINFO_FOLDER.Initialized
+local intermissionCooldown = false
+local countingDown = false
+
+local selectSeconds = DEFAULT_POSITION_SELECT_SECONDS
+
+local assignedkickOff = {
+	Player = nil,
+	Team = nil
+}
+local assignedSetPiece: {["BasePart"]: BasePart, ["Player"]: Player, ["Team"]: "Home" | "Away"} = {
+	BasePart = nil,
+	Player = nil,
+	Team = nil
+}
+
+local positions = {
+	["GK"] = true,
+	["LB"] = true,
+	["CB"] = true, 
+	["RB"] = true ,
+	["LCM"] = true,
+	["RCM"] = true ,
+	["ST"] = true,
+	["LW"] = true,
+	["RW"] = true,
+}
+
+
+local homePositions = {positions = {}} :: {positions: PositionProperties}
+local awayPositions = {positions = {} } :: {positions: PositionProperties}
+
+function ResetGame()
+	RefereeService:ResetTimer()
+	RefereeService:ResetScores()
+	initialized.Value = false
+	intermissionCooldown = false
+
+	table.clear(assignedSetPiece)
+	table.clear(assignedkickOff)
+	table.clear(homePositions.positions)
+	table.clear(awayPositions.positions)
+
+	task.wait(5)
+
+	if #Players:GetPlayers() >= MINIMUM_PLAYERS then
+		AutoService:StartIntermission()
+	else
+		GAMEINFO_FOLDER.Message.Value = "The game must have at least 2 players to start"
+	end
+end
+
+function UpdatePartsPosition(): number
+	local totalPlayers = 0
+
+	for _, positionPart: BasePart in pairs(POSITIONS_FOLDER:GetDescendants()) do
+		if positionPart.Parent.Name == "Home" then
+			if homePositions.positions[positionPart.Name] then
+				positionPart.BrickColor = BrickColor.new("Really blue")
+				positionPart.Owner.TextLabel.Text = homePositions.positions[positionPart.Name].Name
+				totalPlayers += 1
+			else
+				positionPart.BrickColor = BrickColor.new("Bright blue")
+				positionPart.Owner.TextLabel.Text = positionPart.Name
+			end
+		elseif positionPart.Parent.Name == "Away" then
+			if awayPositions.positions[positionPart.Name] then 
+				positionPart.BrickColor = BrickColor.new("Really red")
+				positionPart.Owner.TextLabel.Text = awayPositions.positions[positionPart.Name].Name
+				totalPlayers += 1	
+			else
+				positionPart.BrickColor = BrickColor.new("Terra Cotta")
+				positionPart.Owner.TextLabel.Text = positionPart.Name
+			end	
+		end
+	end
+
+	return totalPlayers
+end
+
+function ChangePositionsState(state: boolean)
+	for _, part: BasePart in pairs(POSITIONS_FOLDER:GetDescendants()) do
+		if not part:IsA("BasePart") then continue end
+		part.CanTouch = state
+		part.Transparency = state and 0 or 1
+		if state then
+			if part.Parent.Name == "Home" then
+				part.BrickColor = BrickColor.new("Bright blue")
+			else
+				part.BrickColor = BrickColor.new("Terra Cotta")
+			end
+			part.Owner.Enabled = true
+			part.Owner.TextLabel.Text = part.Name
+		else
+			part.Owner.Enabled = false
+		end
+	end
+end
+
+function GetPlayerHomePositionPart(player: Player): BasePart?
+	local foundPosition = nil
+	for index: string, plr: Player in pairs(homePositions.positions) do
+		if plr == player then
+			foundPosition = index
+		end
+	end
+
+	if not foundPosition then
+		return
+	end
+
+	return POSITIONS_FOLDER.Home[foundPosition]
+end
+
+function GetPlayerAwayPositionPart(player: Player): BasePart?
+	local foundPosition = nil
+	for index: string, plr: Player in pairs(awayPositions.positions) do
+		if plr == player then
+			foundPosition = index
+		end
+	end
+
+	if not foundPosition then
+		return
+	end
+
+	return POSITIONS_FOLDER.Away[foundPosition]
+end
+
+
+function GetClosestPlayerTOGK(team: Team): Player?
+	local glt = workspace:WaitForChild("Core"):WaitForChild("GoalDetections")[team.Name]
+
+	local closestPlayer = nil
+	local closestMagnitude = math.huge
+	for _, player: Player in pairs(team:GetPlayers()) do
+		local character = player.Character
+		if character and character:FindFirstChild("HumanoidRootPart") then
+			local magnitude = (character.HumanoidRootPart.Position - glt.Position).Magnitude
+			if magnitude < closestMagnitude then
+				closestMagnitude = magnitude
+				closestPlayer = player
+			end
+		end
+	end
+
+	return closestPlayer
+end
+
+function GetRandomPosition(isHome: boolean): string
+	local positionsTable = positions
+
+	if isHome then
+		for position: string,_ in pairs(homePositions.positions) do
+			positionsTable[position] = nil
+		end
+	else
+		for position: string,_ in pairs(awayPositions.positions) do
+			positionsTable[position] = nil
+		end
+	end
+
+	local foundPosition = nil
+
+	for index, value in pairs(positionsTable) do
+		foundPosition = index
+	end
+
+	return foundPosition
+end
+
+function PosititionPlayersToPosition()
+	for _, player in pairs(Players:GetPlayers()) do
+		if not player.Character and not player.Character:FindFirstChild("HumanoidRootPart") then continue end
+		local teamName = player.Team.Name
+		if teamName:find("Home") then
+			local partPosition = GetPlayerHomePositionPart(player)
+			if not partPosition then
+				local randomizedPosition = GetRandomPosition(true)
+				homePositions.positions[randomizedPosition] = player
+				partPosition = GetPlayerHomePositionPart(player)
+			end
+			player.Character.HumanoidRootPart.CFrame = CFrame.new(partPosition.Position + Vector3.new(0, 10, 0))
+		elseif teamName:find("Away") then
+			local partPosition = GetPlayerAwayPositionPart(player)
+			if not partPosition then
+				local randomizedPosition = GetRandomPosition(false)
+				awayPositions.positions[randomizedPosition] = player
+				partPosition = GetPlayerAwayPositionPart(player)
+			end
+			player.Character.HumanoidRootPart.CFrame = CFrame.new(partPosition.Position + Vector3.new(0, 10, 0))
+		end
+	end
+end
+
+function GetClosestPlayersFromPosition(position: Vector3, players: {Players})
+	local closetMagnitude = math.huge
+	local closestPlayer
+	
+	for _, player: Player in pairs(players) do
+		if not player.Character and not player.Character:FindFirstChild("HumanoidRootPart") then continue end
+		local magnitude = (player.Character.HumanoidRootPart.Position - position).Magnitude
+		if magnitude < closetMagnitude then
+			closetMagnitude = magnitude
+			closestPlayer = player
+		end
+	end
+	
+	
+	return closestPlayer
+end
+
+function HandlePlayerTaking(player: Player, position: Vector3, teamThatsTaking: "Home" | "Away")
+	local playerThatsTaking = player
+	local presumedTeam = teamThatsTaking == "Home" and Teams["Home"] or Teams["Away"]
+	
+	if not playerThatsTaking then
+		local goalkeeper = Teams["-"..teamThatsTaking.." Goalkeeper"]:GetPlayers()[1]
+		local players = presumedTeam:GetPlayers()
+		local closestPlayer = GetClosestPlayersFromPosition(position, players)
+		
+		if closestPlayer then
+			playerThatsTaking = closestPlayer
+		elseif not closestPlayer and goalkeeper then
+			playerThatsTaking = goalkeeper
+		end
+	end
+	
+	if playerThatsTaking and playerThatsTaking.Character and playerThatsTaking.Character:FindFirstChild("HumanoidRootPart") then
+		playerThatsTaking:SetAttribute("SetPiece", true)
+		playerThatsTaking.Character.HumanoidRootPart.AssemblyLinearVelocity = Vector3.new()
+		playerThatsTaking.Character.HumanoidRootPart.CFrame = CFrame.new(position)
+		task.delay(6, function()
+			playerThatsTaking:SetAttribute("SetPiece", false)
+		end)
+	end
+end
+
+
+function HandleKickOff(startingTeam: "Home" | "Away")
+	if TimerModule:GetLA() then
+		FinishGame()
+		return
+	end
+	assignedkickOff.Team = startingTeam
+
+	PosititionPlayersToPosition()
+	GetKickOffPart()
+
+	task.delay(6, function()
+		local playerThatsTaking = assignedkickOff.Player
+		local position = Vector3.new(0, 8, 0)
+		
+		HandlePlayerTaking(playerThatsTaking, position, startingTeam)
+
+		local ballInstance = BallService.new(position, startingTeam)
+		table.clear(assignedkickOff)
+		
+		GAMEINFO_FOLDER.Taker.Value = ""
+		GAMEINFO_FOLDER.Message.Value = "Match in progress"
+		TimerModule:Resume()
+	end)
+
+	for _, player in pairs(Players:GetPlayers()) do
+		local teamName = player.Team.Name
+		if teamName:find("Home") or teamName:find("Away") then
+			SetPieceRemote:FireClient(player, "Kick Off", startingTeam == "Home")
+		end
+	end
+end
+
+
+function HandleMatchStarting()
+	if initialized.Value then return end
+	initialized.Value = true
+	GAMEINFO_FOLDER.Message.Value = "Match in Progress"
+
+	RandomizePlayersTeams()
+	ChangePositionsState(true)
+
+	selectSeconds = DEFAULT_POSITION_SELECT_SECONDS
+	GAMEINFO_FOLDER.Message.Value = "Select your position - "..tostring(selectSeconds).." remaining"
+	while selectSeconds > 0 do
+		task.wait(1)
+		selectSeconds -= 1
+		GAMEINFO_FOLDER.Message.Value = "Select your position - "..tostring(selectSeconds).." remaining"
+	end
+
+	ChangePositionsState(false)
+	HandleKickOff("Home")
+end
+
+function FinishGame()
+	if not initialized.Value then return end
+	lastAttackMaid:Destroy()
+	workspace.Core.Balls:ClearAllChildren()
+	initialized.Value = false
+	GAMEINFO_FOLDER.Message.Value = "Full Time"
+
+	local scoresFolder = STATS_FOLDER.Scores
+	print("FULL TIME - "..tostring(scoresFolder.Home.Value).." - "..tostring(scoresFolder.Away.Value))
+	local winnerMessage = if scoresFolder.Home.Value > scoresFolder.Away.Value then 
+		"FT - Home team won!" 
+		elseif scoresFolder.Away.Value > scoresFolder.Home.Value then
+		"FT - Away team won!" 
+		elseif scoresFolder.Away.Value == scoresFolder.Home.Value then
+		"FT - It's a draw!"
+		else
+		"FT"
+
+	for _, player in pairs(Players:GetPlayers()) do
+		SetPieceRemote:FireClient(player, winnerMessage, nil)
+	end
+
+	for _, player in pairs(Players:GetPlayers()) do
+		player.TeamColor = BrickColor.new("Smoky grey")
+	end
+
+	ChangePositionsState(false)
+	ResetGame()
+end
+
+function RandomizePlayersTeams()
+	local players = game:GetService("Players"):GetPlayers()
+	ShuffleTable(players)
+
+	for index, player in pairs(players) do
+		local lowestTeamPlayers = GetLowestTeamQuantity()
+		
+		if lowestTeamPlayers == "Home" then
+			player.TeamColor = BrickColor.new("Really blue")
+		elseif lowestTeamPlayers == "Away" then
+			player.TeamColor = BrickColor.new("Really red")
+		else
+			local random = math.random(1, 2)
+			if random == 1 then
+				player.TeamColor = BrickColor.new("Really blue")
+			else
+				player.TeamColor = BrickColor.new("Really red")
+			end
+		end
+	end
+end
+
+function RemovePlayerFromPosition(player: Player)
+	for index, position in pairs(homePositions.positions) do
+		if position == player then
+			homePositions.positions[index] = nil
+			break 
+		end
+	end
+
+	for index, position in pairs(awayPositions.positions) do
+		if position == player then
+			awayPositions.positions[index] = nil
+			break 
+		end
+	end
+
+	for index, part in pairs(POSITIONS_FOLDER:GetDescendants()) do
+		if part:IsA("BasePart") and part.Owner.TextLabel.Text == player.Name then
+			part.Owner.TextLabel.Text = part.Name
+		end
+	end
+end
+
+function GetLowestTeamQuantity(): "Home" | "Away" | "None"
+	local home = #Teams.Home:GetPlayers() + #Teams["-Home Goalkeeper"]:GetPlayers()
+	local away = #Teams.Away:GetPlayers() + #Teams["-Away Goalkeeper"]:GetPlayers()
+
+	if home < away then
+		return "Home"
+	elseif away < home then
+		return "Away"
+	else
+		return "None"
+	end
+end
+
+function AutoService:HandleGoal(sideStarting: "Home" | "Away")
+	TimerModule:Pause()
+	task.wait(5)
+	HandleKickOff(sideStarting)
+end
+
+function HandleBallOutOfBounds(ballInstance: BasePart)
+	ballInstance.CanTouch = false
+	ballInstance.Highlight.FillColor = Color3.new(255, 0, 0)
+	ballInstance.Highlight.FillTransparency = 0
+	Debris:AddItem(ballInstance, 3)
+end
+
+function AutoService:HandleLastAttack()
+	local firstBall = workspace.Core:WaitForChild("Balls"):GetChildren()[1]
+
+	if firstBall then
+		local ballModel = BallService:GetBall(firstBall)
+		if not ballModel then FinishGame() return end
+
+		local playerOnBall = ballModel.Data.PlayerOnBall
+		local lastPlayerOnBall = ballModel.Data.LastPlayerOnBall
+
+		if playerOnBall.Value then
+			local team = playerOnBall.Value.Team.Name:find("Home") and "Home" or "Away"
+			TimerModule:SetLAText(team)
+			lastAttackMaid:GiveTask(playerOnBall:GetPropertyChangedSignal("Value"):Connect(function()
+				if playerOnBall.Value == nil then return end
+				local oppositeTeam = not playerOnBall.Value.Team.Name:find(team)
+				if oppositeTeam then
+					FinishGame()
+				end
+			end))
+		elseif not playerOnBall.Value and lastPlayerOnBall.Value then
+			local team = lastPlayerOnBall.Value.Team.Name:find("Home") and "Home" or "Away"
+			TimerModule:SetLAText(team)
+			lastAttackMaid:GiveTask(playerOnBall:GetPropertyChangedSignal("Value"):Connect(function()
+				if playerOnBall.Value == nil then return end
+				local oppositeTeam = not playerOnBall.Value.Team.Name:find(team)
+				if oppositeTeam then
+					FinishGame()
+				end
+			end))
+		else
+			FinishGame()
+		end
+	else
+		FinishGame()
+	end
+end
+
+function AutoService:HandleOffside(isHomePosession: boolean, offsidePosition: number)
+	TimerModule:Pause()
+	local clone = SETPIECE_PART:Clone()
+	clone.BrickColor = isHomePosession and BrickColor.new("Really blue") or BrickColor.new("Really red")
+	clone.Position = Vector3.new(0, 0.5, offsidePosition)
+	AutoService:AlertSetPiece(isHomePosession, clone, "Offside")
+end
+
+function AutoService:HandleFlickspam(playerOnBall: Player, ballPosition: Vector3, ballPart: BasePart)
+	HandleBallOutOfBounds(ballPart)
+
+	local ballInstance = BallService:GetBall(ballPart)
+	if not ballInstance then return end
+	ballInstance:RemoveWeld()
+
+	local homePosession = not playerOnBall.Team.Name:find("Home")
+	local clone = SETPIECE_PART:Clone()
+	clone.BrickColor = homePosession and BrickColor.new("Really blue") or BrickColor.new("Really red")
+	clone.Position = Vector3.new(ballPosition.X, 0.5, ballPosition.Z)
+
+	AutoService:AlertSetPiece(homePosession, clone, "Flick spam")
+end
+
+function AutoService:StartIntermission()
+	if initialized.Value == true then return end
+	if intermissionCooldown then return end
+	intermissionCooldown = true
+
+	seconds = DEFAULT_INTERMISSION_SECONDS
+	GAMEINFO_FOLDER.Intermission.Value = seconds
+	GAMEINFO_FOLDER.Message.Value = "Intermission "..tostring(seconds)
+	countingDown = true
+	while seconds > 0 and countingDown do
+		task.wait(1)
+		seconds -= 1
+		GAMEINFO_FOLDER.Intermission.Value = seconds
+		GAMEINFO_FOLDER.Message.Value = "Intermission "..tostring(seconds)
+	end
+
+	if seconds > 0 then return end
+	countingDown = false
+	HandleMatchStarting()
+end
+
+function AutoService:StopIntermission()
+	if initialized.Value == true then return end
+	if not intermissionCooldown then return end
+	intermissionCooldown = false
+
+	seconds = DEFAULT_INTERMISSION_SECONDS
+	countingDown = false
+	GAMEINFO_FOLDER.Message.Value = "The game must have at least 2 players to start"
+end
+
+function AutoService:AlertSetPiece(homePosession: boolean, setPiecePart: BasePart, text: string, ballPosition: Vector3)
+	if TimerModule:GetLA() then
+		FinishGame()
+		return
+	end
+
+	if assignedSetPiece.BasePart then return end
+
+	task.delay(6, function()
+		if not assignedSetPiece.BasePart then return end
+		if assignedSetPiece.BasePart ~= setPiecePart then return end
+		local part = SetPieceHandler(setPiecePart, ballPosition)
+		local playerThatsTaking = assignedSetPiece.Player
+		local teamTaking = part.BrickColor == BrickColor.new("Really blue") and "Home" or "Away"
+		
+		HandlePlayerTaking(playerThatsTaking, Vector3.new(part.Position.X, 8, part.Position.Z), teamTaking)
+		table.clear(assignedSetPiece)
+		
+		GAMEINFO_FOLDER.Taker.Value = ""
+	end)
+
+	assignedSetPiece.BasePart = setPiecePart
+	assignedSetPiece.Team = homePosession and "Home" or "Away"
+
+	for _, player in pairs(Players:GetPlayers()) do
+		local teamName = player.Team.Name
+		if teamName:find("Home") or teamName:find("Away") then
+			SetPieceRemote:FireClient(player, text, homePosession)
+		end
+	end
+end
+
+function AutoService:GetPlayerPosition(player: Player): Player?
+	for _, position in pairs(homePositions.positions) do
+		if position == player then
+			return position
+		end
+	end
+
+	for _, position in pairs(awayPositions.positions) do
+		if position == player then
+			return position
+		end
+	end
+
+	return nil 
+end
+
+function AutoService:AssignGoalKick(homePosession: boolean)
+	if TimerModule:GetLA() then
+		FinishGame()
+		return
+	end
+	
+	local setPiecePart = GOALKICK_PART:Clone()
+	setPiecePart.BrickColor = homePosession and BrickColor.new("Really blue") or BrickColor.new("Really red")
+	setPiecePart.Position = homePosession and Vector3.new(0, 0.5, GOALKICK_ZAXIS) or Vector3.new(0, 0.5, -GOALKICK_ZAXIS)	
+	
+	for _, player in pairs(Players:GetPlayers()) do
+		SetPieceRemote:FireClient(player, "Goal kick", nil)
+	end
+
+	task.wait(6)
+
+	local team = homePosession and "Home" or "Away"
+	local goalkeeper: Player? = Teams["-"..team.." Goalkeeper"]:GetPlayers()[1]
+	local part = SetPieceHandler(setPiecePart)
+
+	if goalkeeper then
+		if goalkeeper.Character and goalkeeper.Character:FindFirstChild("HumanoidRootPart") then
+			goalkeeper.Character.HumanoidRootPart.CFrame = CFrame.new(part.Position.X, 8, part.Position.Z)
+		end
+	else
+		local closestPlayer = GetClosestPlayerTOGK(Teams[team])
+		if closestPlayer then
+			closestPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(part.Position.X, 8, part.Position.Z)
+		end
+	end
+end
+
+function AutoService:AssignSetPiece(player: Player)
+	local assignedPiece
+	local isKickOff = assignedkickOff.Team and not assignedkickOff.Player
+	local isSetPiece = assignedSetPiece.BasePart and not assignedSetPiece.Player
+	local teamName = player.Team.Name
+
+	if isSetPiece and teamName:find(assignedSetPiece.Team) then
+		assignedPiece = assignedSetPiece
+	elseif isKickOff and teamName:find(assignedkickOff.Team) then
+		assignedPiece = assignedkickOff
+	end
+
+	if assignedPiece then
+		assignedPiece.Player = player
+		GAMEINFO_FOLDER.Taker.Value = player.Name
+	end
+end
+
+function AutoService:AssignPlayerToPosition(player: Player, desiredPosition: string)
+	if not positions[desiredPosition] then return end
+
+	local currentPlayerTeam = player.Team.Name
+
+	if currentPlayerTeam:find("Home") then
+		local existingPlayer: Player? = homePositions.positions[desiredPosition]
+		if existingPlayer then return end
+		RemovePlayerFromPosition(player)
+		homePositions.positions[desiredPosition] = player
+	elseif currentPlayerTeam:find("Away") then
+		local existingPlayer: Player? = awayPositions.positions[desiredPosition]
+		if existingPlayer then return end
+		RemovePlayerFromPosition(player)
+		awayPositions.positions[desiredPosition] = player
+	end
+
+	if desiredPosition == "GK" then
+		if homePositions.positions["GK"] == player then
+			player.TeamColor = BrickColor.new("Navy blue")
+		elseif awayPositions.positions["GK"] == player then
+			player.TeamColor = BrickColor.new("Maroon")
+		end
+	elseif desiredPosition ~= "GK" then
+		if player.TeamColor == BrickColor.new("Navy blue") then
+			player.TeamColor = BrickColor.new("Really blue")
+		elseif player.TeamColor == BrickColor.new("Maroon") then
+			player.TeamColor = BrickColor.new("Really red")
+		end
+	end
+
+	local players = UpdatePartsPosition()
+	if players >= #Players:GetPlayers() then
+		selectSeconds = 5
+	end
+end
+
+function AutoService:AssignPlayerToGK(player: Player)
+	if not initialized.Value then return end
+	if not GAMEINFO_FOLDER.Message.Value:find("progress") then return end	
+	AutoService:AssignPlayerToPosition(player, "GK")
+end
+
+Players.PlayerRemoving:Connect(function(player)
+	RemovePlayerFromPosition(player)
+	UpdatePartsPosition()
+end)
+
+function AssignPlayerJoinedPosition(player: Player)
+	if not GAMEINFO_FOLDER.Message.Value:find("progress") then return end
+	
+	local playingForHome = player.Team.Name:find("Home")
+	local randomizedPosition = GetRandomPosition(playingForHome)
+	
+	if playingForHome then
+		homePositions.positions[randomizedPosition] = player
+	else
+		awayPositions.positions[randomizedPosition] = player
+	end
+	
+	if randomizedPosition == "GK" then
+		player.TeamColor = playingForHome and BrickColor.new("Navy blue") or BrickColor.new("Maroon")
+	else
+		player.TeamColor = playingForHome and BrickColor.new("Really blue") or BrickColor.new("Really red")
+	end
+	UpdatePartsPosition()
+end
+
+Players.PlayerAdded:Connect(function(player)
+	if not initialized.Value then return end
+
+	local lowestTeam = GetLowestTeamQuantity()
+	if lowestTeam == "Home" then
+		player.TeamColor = BrickColor.new("Really blue")
+		AssignPlayerJoinedPosition(player)
+	elseif lowestTeam == "Away" then
+		player.TeamColor = BrickColor.new("Really red")
+		AssignPlayerJoinedPosition(player)
+	else
+		local randomize = math.random(1, 2)
+		player.TeamColor = randomize == 1 and BrickColor.new("Really blue") or BrickColor.new("Really red")
+		if player.Team.Name:find("Home") then
+			AssignPlayerJoinedPosition(player)
+		elseif player.Team.Name:find("Away") then
+			AssignPlayerJoinedPosition(player)
+		end
+	end
+end)
+
+ChangePositionsState(false)
+
+BALLS_FOLDER.ChildRemoved:Connect(function(ball)
+	local highlightColor = ball.Highlight.FillColor
+	if highlightColor == Color3.new(255, 0, 0) then return end
+	if TimerModule:GetLA() then
+		FinishGame()
+		return
+	end
+	TimerModule:Pause()
+	
+	local seconds = 5
+	GAMEINFO_FOLDER.Message.Value = "Match paused. Spawning a new ball in "..tostring(seconds)
+	while seconds > 0 do
+		task.wait(1)
+		seconds -= 1
+		GAMEINFO_FOLDER.Message.Value = "Match paused. Spawning a new ball in "..tostring(seconds)
+	end
+	
+	local newBall = BallService.new(Vector3.new(0, 4, 0))
+	TimerModule:Resume()
+	GAMEINFO_FOLDER.Message.Value = "Match in progress"
+end)
+
+return AutoService
+]]></ProtectedString>
+				<string name="ScriptGuid">{168ED6D8-D0F7-4F67-BB55-2A51C57166F3}</string>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">AutoService</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+			<Item class="ModuleScript" referent="RBX0B9383346D79460E8A1B68FD51E679B3">
+				<Properties>
+					<Content name="LinkedSource"><null></null></Content>
+					<ProtectedString name="Source"><![CDATA[return function(t)
+	local j, temp
+	for i = #t, 1, -1 do
+		j = math.random(i)
+		temp = t[i]
+		t[i] = t[j]
+		t[j] = temp
+	end
+end]]></ProtectedString>
+					<string name="ScriptGuid">{7FC94CE6-20B4-4A22-A50D-8E3B2902AD26}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">ShuffleTable</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX8925BE0F1E7240B08AC694BB6CB85DEF">
+				<Properties>
+					<Content name="LinkedSource"><null></null></Content>
+					<ProtectedString name="Source"><![CDATA[local Players = game:GetService("Players")
+local Debris = game:GetService("Debris")
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local BallService = require(ServerScriptService:WaitForChild("Services"):WaitForChild("BallService"))
+
+local HomeGLT = workspace:WaitForChild("Core"):WaitForChild("GoalDetections"):WaitForChild("Home")
+local AwayGLT = HomeGLT.Parent.Away
+
+return function (part: BasePart, desiredPosition: Vector3, existingBall: BasePart): BasePart
+	local cooldown = {}
+
+	local function HandleCooldown(player: Player)
+		if cooldown[player] then return end
+		cooldown[player] = true
+		task.wait(.125)
+		cooldown[player] = nil
+	end
+
+	part.Touched:Connect(function(partThatTouched: BasePart)
+		local player = Players:GetPlayerFromCharacter(partThatTouched.Parent)
+		if not player then return end
+		if player:GetAttribute("SetPiece") == true then return end
+
+		if cooldown[player] then return end
+		task.spawn(HandleCooldown, player)
+
+		local teamName = player.Team.Name
+
+		if teamName:find("Home") and part.BrickColor == BrickColor.new("Really red") then
+			local character = player.Character
+			if not character then return end
+			local humanoidRootPart: BasePart = character:FindFirstChild("HumanoidRootPart")
+			if not humanoidRootPart then return end
+			local positionOffset = (humanoidRootPart.CFrame * CFrame.new(0, 0, 25)).Position
+			humanoidRootPart.CFrame = CFrame.new(positionOffset, HomeGLT.Position)
+		elseif teamName:find("Away") and part.BrickColor == BrickColor.new("Really blue") then
+			local character = player.Character
+			if not character then return end
+			local humanoidRootPart: BasePart = character:FindFirstChild("HumanoidRootPart")
+			if not humanoidRootPart then return end
+			local positionOffset = (humanoidRootPart.CFrame * CFrame.new(0, 0, -25)).Position
+			humanoidRootPart.CFrame = CFrame.new(positionOffset, AwayGLT.Position)
+			-- humanoidRootPart.CFrame += Vector3.new(0, 0, -25)
+		end
+	end)
+
+	local setPieceSide = part.BrickColor == BrickColor.new("Really blue") and "Home" or "Away"
+	
+	if not existingBall then
+		local positionToSpawn = desiredPosition or Vector3.new(part.Position.X, 4, part.Position.Z)
+		local newBall = BallService.new(positionToSpawn, setPieceSide)
+		part.Parent = newBall.Instance
+		
+		task.delay(12, function()
+			if newBall then
+				newBall:RemoveSetPiece()
+			end
+		end)
+	else
+		part.Parent = existingBall
+	end
+	
+	Debris:AddItem(part, 12)
+	return part
+end]]></ProtectedString>
+					<string name="ScriptGuid">{A2D3CE32-CA0C-4ADF-81C6-E123EC2B4757}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">SetPieceHandler</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBXA994C6622B99480DACBA8B9EF7E26664">
+				<Properties>
+					<Content name="LinkedSource"><null></null></Content>
+					<ProtectedString name="Source"><![CDATA[return function(tableToOrganize)
+	local organizedTable = {}
+
+	for _, value in ipairs(tableToOrganize) do
+		if value ~= nil and value ~= "" then
+			table.insert(organizedTable, value)
+		end
+	end
+
+	return organizedTable
+end]]></ProtectedString>
+					<string name="ScriptGuid">{1D91F75C-7F62-4277-BA53-B5F2412A5E48}</string>
+					<BinaryString name="AttributesSerialize"></BinaryString>
+					<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+					<bool name="DefinesCapabilities">false</bool>
+					<string name="Name">OrganizeTable</string>
+					<int64 name="SourceAssetId">-1</int64>
+					<BinaryString name="Tags"></BinaryString>
+				</Properties>
+			</Item>
+		</Item>
+	</Item>
+	<SharedStrings>
+		<SharedString md5="EpKVge+FlzQGQ8IrnMuMRg==">Q1NHUEhTCAAAAAIAKLUv/WCABn0UAAQTDgAAAJb0ER7aAQAAPAgHAAA6M0jCAABIw3oAOsMy
+M0hCQyb+OUPl4qdSlFdLvaFA8bptXdc9z4IC5cDtum6t2wIuCrhd19eu3QIWFG9d5af21KL8
+dAstir/Udovy2rdblAMAcKA7AADIQiN+AUM2LkLQWxuYA7pCn7NjNS5Iwg5/AUMAYKC7egC6
+QsLCO8LCyJhSEEH6hjgAAIw+kEHODzcnl8ZBQ70zveX8QbhqMLgyIUJ1TCnQrj1CD5sgLFgj
+BbpCklIQwSCgu9L7ij6QwSuhxsHC7/zBujchwtKzPcIQwnwAN3pNJcJgjMLBmDIpUH9KQkLR
++7lCt/36xxU8Qj67tzUDwEF6ALoo7ZJCP2lhwvz1xwIAyMJRf/1HwwQKyMJ6gAFDAQXIwomR
+SkJCQ4D3qAGbqBRmr+2AjMyUbQ4wzJFShbQG10snz/Mx0am06Z3FJd6p//Vn04UdNjrMhQv5
+NHkBiq6c/VcdfGm/D98ymtpxuHQx140lfWYmMXA816vOstC86e3WPN5d0he27aXVWbfmBnjF
+QQ/YLDyn20+nVJZ6bQojADnJkAHf3Hn87xRL4wJM82X8uAMnodP+8g2PC/3PCc/xvh/XaJUn
+J8r3qJ1J4Ahdvgvb0wBeiAuboLf2v//Ea2ff+HG5nn5vCpurk9f4j3rrKsDbm2VnID38y34W
+aPkg9dm+R14n9D/O7eI+JfcJwtzL4+Jnw8sWbGjZb/tcdt597rPvO48XX3RwDtUeXNTIu/JV
+yk8pqUkmSH8rB4fx6Zrv7Bc2lkjult6B76wLz2pVjV/u3O7dV7M3C3veD/H+i12SI+UWei5g
+fOe87NXg6b8J6TP9Qkil53qqfKfuUhNAgAEEGD8=</SharedString>
+		<SharedString md5="SK5IZXyxMPr00S5jpj8eLg==">Q1NHUEhTCAAAAAIAKLUv/WBwB10aAEQbDgAAAKkaAQAAFigmAgAASOwHAADDQzNIwoAAOsND
+PTNIQkOl7joVVW3Bq6tceKtVFVBv91lVVt0WKODA7bpuT0Ddonubxa2lWqB42merCoHy92R3
+e7Ngm8oF5dstytsot1uUblFutzcKSMLG9TTB11sbwzguSMJHWhvD/v/Hg30BANCgu4AAusLo
+smMAAMhC2VsbhADAoLufs2MQoDvITlhCAACAt1MFEzQpSEJXSs3CQvTdwi6t4ML9+sfCE38B
+w/z/R0C31qrs2MKcs2PIU1jhBqCfuzopwDcA8KC7glIQwUuJOMOCPpDBFhI3w7rv/MFqMMO2
+NyHCD0wpw86zPcacIGxXGyOhxnW/M5hSEEG3jD6QJ5fGveX8uDIhQtCuPX40kMGgNyCXxsG9
+tjIhwvv6R8Cfu3o+EHsUKsOI5hbCLlAvFsfCwv547PfCADCgO/yig6cWA0LKUc1orOD//8fC
+MzwzSMIUefjBOF8vwvz6x8JYf0rCvTwhM1+xwtoX/cFSIqPCiz6Qz9eVrSAD0LCGQM8D/UG+
+PCFCAQXIwjUpSMJ//UfDd4ABwyV/ADpD1vs514E7qOGK2ClIhv0zIT3CEHRGHVGURoRRMs0B
+C8c6+hBqF+A+QJJMWwwx8cfYbBqF5vKo92g7pp9EcrHwQxM52P9ua8tlNPzAyApj4e/MO3qA
+MfgVOnhbriSeCP/UfByqyecM9XjyEynDbDsXxtxcmqWouzt7Qy384zNneI49D2obyrc+jZvx
+7ziKn/EiyAS6R2POupfbz3Uhr5Ft3KAbbR/wk/Iy1F1kaicjuF4nlgHxKDjMyZ40aopMjh3c
+p0ilQXei4nAEhzhiTfz48mJJaY4Izkji8Bj8zH/eZW/BC+nxPMpqJW83+NbO3JwrOhnyL4Vc
+Nfj9zOJs5YZfK7JTG4qMBdx5Ywl93IU+NMkXlT/Pgr7PqR8urzHf1vCnt458sBjbO/c95Ajg
+8EumvenE1BExzswrJia88+6FTH87q5+LHeH+iveYKYet5DG+hr+vOD+D+aWX3MMxFtfIjz99
+8Tj0H6w+Nd4KFynJjsfPVJB4zzPIt2l7KLcZTJBgQXLecJVoqlYNkakc/BO+hqlEGfep+QLF
+Dw==</SharedString>
+		<SharedString md5="yuZpQdnvvUBOTYh1jqZ2cA=="></SharedString>
+	</SharedStrings>
+</roblox>

@@ -93,6 +93,65 @@ return {
 			end
 		end,
 	},
+	{
+		{ "givecoins", "addcoins" },
+		{ "Dá coins para um jogador.", ";givecoins nick quantidade" },
+		5,
+		{ "player", "number" },
+		function(pl, args)
+			local Players = game:GetService("Players")
+			local ServerScriptService = game:GetService("ServerScriptService")
+			local PlayerModule = require(ServerScriptService.Modules.Systems.Player)
+			
+			local targetPlayers = args[1]
+			local amount = args[2]
+			
+			if not targetPlayers or #targetPlayers == 0 then
+				return "Jogador não encontrado."
+			end
+			
+			if not amount or amount == 0 then
+				return "Quantidade inválida."
+			end
+			
+			for _, targetPlayer in ipairs(targetPlayers) do
+				PlayerModule:AddCoins(targetPlayer, amount)
+				print("[Admin] " .. pl.Name .. " deu " .. amount .. " coins para " .. targetPlayer.Name)
+			end
+		end,
+	},
+	{
+		{ "resetcoins", "setcoins" },
+		{ "Define a quantidade exata de coins de um jogador.", ";resetcoins nick quantidade" },
+		5,
+		{ "player", "number" },
+		function(pl, args)
+			local Players = game:GetService("Players")
+			local ServerScriptService = game:GetService("ServerScriptService")
+			local PlayerModule = require(ServerScriptService.Modules.Systems.Player)
+			
+			local targetPlayers = args[1]
+			local amount = args[2]
+			
+			if not targetPlayers or #targetPlayers == 0 then
+				return "Jogador não encontrado."
+			end
+			
+			if amount == nil then
+				return "Quantidade inválida."
+			end
+			
+			for _, targetPlayer in ipairs(targetPlayers) do
+				local leaderstats = targetPlayer:FindFirstChild("leaderstats")
+				if leaderstats and leaderstats:FindFirstChild("Coins") then
+					local currentCoins = leaderstats.Coins.Value
+					local difference = amount - currentCoins
+					PlayerModule:AddCoins(targetPlayer, difference)
+					print("[Admin] " .. pl.Name .. " setou coins de " .. targetPlayer.Name .. " para " .. amount)
+				end
+			end
+		end,
+	},
 	-- {
 	-- 	{ "test", "othertest" },
 	-- 	{ "Test command.", "Example" },

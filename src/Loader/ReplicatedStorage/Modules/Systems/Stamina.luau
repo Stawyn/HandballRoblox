@@ -1,23 +1,39 @@
 --[[
-	================================================================================
-	MÓDULO: Stamina
-	================================================================================
-	
-	Descrição:
-		Sistema de stamina (energia) do jogador.
-		Gerencia o consumo de energia ao correr e pular, regeneração e UI.
-	
-	Dependências:
-		- StaminaUI (Visual)
-		- SharedAttributes (Valores de velocidade)
-		- InputSystem (Entrada de comandos)
-	
-	Autor: Sistema ABH
-	================================================================================
+    ================================================================================
+    MÓDULO: Stamina (Client)
+    ================================================================================
+    Descrição: Sistema de stamina/energia do jogador para controle de sprint e pulo.
+    
+    Funcionalidades:
+        - Sprint: Aumenta velocidade enquanto consome stamina
+        - Regeneração: Recupera stamina quando não está correndo
+        - Pulo: Consome stamina ao pular
+        - Exaustão: Impede sprint quando stamina chega a zero
+    
+    Configuração:
+        - STAMINA_DURATION: Duração máxima do sprint (7s)
+        - DRAIN_RATE: Taxa de consumo de stamina
+        - INCREASE_RATE: Taxa de regeneração (20/s)
+        - JUMP_DECREASE_RATE: Custo do pulo (24)
+    
+    Autor: Sistema ABH
+    ================================================================================
 ]]
 
 --// ============================================================================
---// SETOR: Serviços
+--// SETOR: CONSTANTES DE CONFIGURAÇÃO
+--// ============================================================================
+
+local Stamina = {}
+
+local STAMINA_DURATION = 7 -- Duração em segundos
+local DRAIN_RATE = 100 / STAMINA_DURATION
+local INCREASE_RATE = 20
+local JUMP_DECREASE_RATE = 24
+local RUN_REFRESH = 15
+
+--// ============================================================================
+--// SETOR: SERVIÇOS E DEPENDÊNCIAS
 --// ============================================================================
 
 local Players = game:GetService("Players")
@@ -25,30 +41,14 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
---// ============================================================================
---// SETOR: Dependências
---// ============================================================================
+local StaminaUI = require("../Implementation/StaminaUI")
+local SharedAttributes = require("../Implementation/SharedAttributes")
+local InputSystem = require("../Implementation/InputSystem")
 
--- Assumindo caminhos relativos originais para compatibilidade
-local StaminaUI = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("StaminaUI"))
-local SharedAttributes = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("SharedAttributes"))
-local InputSystem = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("InputSystem"))
-
-local Stamina = {}
+local STAMINA_EVENT = ReplicatedStorage:WaitForChild("Network"):WaitForChild("StaminaEvent")
 
 --// ============================================================================
---// SETOR: Configurações e Constantes
---// ============================================================================
-
-local STAMINA_DURATION = 7 			-- Duração total em segundos se correr sem parar
-local DRAIN_RATE = 100 / STAMINA_DURATION
-local INCREASE_RATE = 20 			-- Taxa de regeneração por segundo
-local JUMP_DECREASE_RATE = 24 		-- Custo de stamina por pulo
-local RUN_REFRESH = 15 				-- Stamina necessária para voltar a correr após exaustào
-local REGEN_DELAY = 0.25 			-- Tempo de espera antes de regenerar
-
---// ============================================================================
---// SETOR: Estado
+--// SETOR: ESTADO LOCAL
 --// ============================================================================
 
 local localPlayer = Players.LocalPlayer :: Player
@@ -57,20 +57,26 @@ local sprinting = false
 local sprintHeld = false
 local exhausted = false
 local jumpCooldown = false
-local lastSprintTime = 0
 
---// ============================================================================
---// SETOR: Interface Mobile
---// ============================================================================
+-- Listener servidor (correção/sincronia)
+STAMINA_EVENT.OnClientEvent:Connect(function(action, value)
+	if action == "ForceStopSprint" then
+		sprinting = false
+		exhausted = true
+		sprintHeld = false -- Opcional, força soltar o botão
+		Stamina:Sprint(false) -- Atualiza UI
+	end
+end)
 
+-- UI Mobile
 local mobileUI = localPlayer.PlayerGui:WaitForChild("Mobile")
 local sprintFrame = mobileUI:WaitForChild("Sprint") :: Frame 
 local sprintButton = sprintFrame:WaitForChild("Interact") :: TextButton
 
--- Inicializa o contexto de input físico
-InputSystem.Contexts.Physical.Enabled = true 
+--// ============================================================================
+--// SETOR: HANDLERS DE INPUT MOBILE
+--// ============================================================================
 
--- Configura botào da UI Mobile
 sprintButton.MouseButton1Click:Connect(function()
 	sprintHeld = not sprintHeld
 	Stamina:Sprint(sprintHeld)
@@ -86,16 +92,9 @@ sprintButton.MouseButton1Click:Connect(function()
 	end
 end)
 
---// ============================================================================
---// SETOR: Funções Principais
---// ============================================================================
+InputSystem.Contexts.Physical.Enabled = true 
 
---[[
-	Atualiza o valor da stamina (gasto ou regeneração) e a UI.
-	
-	@param state boolean - True se está gastando, False se está regenerando
-	@param deltaTime number - Variação de tempo do frame
-]]
+
 function Stamina:ChargeStamina(state: boolean, deltaTime: number)	
 	StaminaUI:TweenLastProgress(stamina)
 
@@ -110,68 +109,45 @@ function Stamina:ChargeStamina(state: boolean, deltaTime: number)
 	StaminaUI:TweenProgress(deltaTime, stamina)
 end
 
---[[
-	Reduz a stamina por um valor fixo imediato (ex: ao pular).
-	@param value number - Valor a ser descontado
-]]
+local REGEN_DELAY = 0.25 -- rlx o pai sabe oq faz
+local lastSprintTime = 0
+
+function Stamina:Sprint(state: boolean)
+	if exhausted and state then
+		return
+	end
+	
+	-- Lógica visual imediata (Prediction)
+	sprinting = state
+	
+	-- Notificar servidor
+	STAMINA_EVENT:FireServer("Sprint", state)
+end
+
 function Stamina:ChargeByValue(value: number)
 	StaminaUI:TweenLastProgress(stamina)
 	stamina = math.clamp(stamina - value, 0, 100)
 end
 
---[[
-	Ativa ou desativa o modo de corrida.
-	@param state boolean - Estado desejado da corrida
-]]
-function Stamina:Sprint(state: boolean)
-	if exhausted then
-		return
-	end
-
-	local character = localPlayer.Character
-	if not character then return end
-
-	-- Goleiros não usam este sistema de corrida
-	if character:FindFirstChild("KeeperTool") then
-		sprinting = false
-		return
-	end
-
-	local humanoid = character:FindFirstChild("Humanoid") :: Humanoid?
-	if not humanoid then return end
-
-	if state then
-		humanoid.WalkSpeed = SharedAttributes:GetSprintSpeed()
-	else
-		humanoid.WalkSpeed = SharedAttributes:GetWalkSpeed()
-		lastSprintTime = os.clock()
-	end
-
-	sprinting = state
-end
-
---[[
-	Lógica de pulo controlada pela stamina.
-	Só permite pular se tiver stamina suficiente e não estiver segurando a bola.
-]]
 function Stamina:Jump()
 	local character = localPlayer.Character
-	if not character then return end
+	if not character then
+		return
+	end
 
 	local humanoid = character:FindFirstChild("Humanoid") :: Humanoid?
-	if not humanoid then return end
+	if not humanoid then
+		return
+	end
 
-	-- não pode pular enquanto está no ar
 	if humanoid.FloorMaterial == Enum.Material.Air then 
 		return
 	end
-
-	-- Verifica custo de stamina
 	if stamina < JUMP_DECREASE_RATE then
 		return
 	end
 
-	-- Bloqueia pulo se o jogador estiver com a bola (ForceField ativo nele)
+	-- Bloqueia pulo se o jogador estiver com a bola (dentro do Force Field)
 	local workspace = game:GetService("Workspace")
 	local core = workspace:FindFirstChild("Core")
 	if core then
@@ -186,16 +162,13 @@ function Stamina:Jump()
 		end
 	end
 
-	-- Executa o pulo
 	humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 	Stamina:ChargeByValue(JUMP_DECREASE_RATE)
+	
+	-- Notificar servidor
+	STAMINA_EVENT:FireServer("Jump")
 end
 
---// ============================================================================
---// SETOR: Conexões de Input
---// ============================================================================
-
--- Ações de Sprint do InputSystem
 InputSystem.Actions.Physical.Sprint.Pressed:Connect(function()
 	sprintHeld = true
 	Stamina:Sprint(sprintHeld)
@@ -206,7 +179,6 @@ InputSystem.Actions.Physical.Sprint.Released:Connect(function()
 	Stamina:Sprint(sprintHeld)
 end)
 
--- Requisições de Pulo
 UserInputService.JumpRequest:Connect(function()
 	if jumpCooldown then 
 		return
@@ -214,21 +186,15 @@ UserInputService.JumpRequest:Connect(function()
 	jumpCooldown = true
 
 	Stamina:Jump()
-	task.wait(0.25) -- Cooldown técnico
+	task.wait(0.25) -- :P
 
 	jumpCooldown = false
 end)
-
---// ============================================================================
---// SETOR: Loop Principal (Heartbeat)
---// ============================================================================
-
 RunService.Heartbeat:Connect(function(deltaTime)
 	local character = localPlayer.Character
 	local isMoving = false
 
 	if character then
-		-- Desativa corrida se for Goleiro
 		local tool = character:FindFirstChild("KeeperTool")
 		if tool then
 			sprinting = false
@@ -241,34 +207,29 @@ RunService.Heartbeat:Connect(function(deltaTime)
 	end
 
 	if sprinting and isMoving then
-		-- Gastando stamina
 		if stamina > 0 then
 			Stamina:ChargeStamina(true, deltaTime) 
 		else
-			Stamina:Sprint(false) -- Exaustào
+			Stamina:Sprint(false)
 			exhausted = true
 		end
 	else 
-		-- Regenerando stamina
 		if (os.clock() - lastSprintTime) > REGEN_DELAY then
 			if stamina < 100 then
 				Stamina:ChargeStamina(false, deltaTime)
 
-				-- Sai do estado de exaustào se recuperar o mínimo necessário
 				if stamina > RUN_REFRESH then
 					exhausted = false
 
 					if sprintHeld then
-						Stamina:Sprint(sprintHeld) -- Retoma corrida automaticamente
+						Stamina:Sprint(sprintHeld)
 					end 
 				end
 			end
 		end
 	end
 
-	-- Atualiza visual frame a frame
 	StaminaUI:TweenProgress(stamina)
 end)
 
 return Stamina
-

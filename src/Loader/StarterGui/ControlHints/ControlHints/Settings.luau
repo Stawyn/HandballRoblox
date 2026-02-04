@@ -18,23 +18,23 @@ Settings.DEBUG = true -- Toggles detailed non-critical warnings; recommended if 
 
 -- (OPTIONAL)
 -- Responsive icons provide visual feedback by switching to filled/active icons while an InputAction is Pressed.
---   â€¢ Use '_active' table variants in icon set when the input action is pressed/held
---   â€¢ Selected icon set must include '<platform>_active' tables
---   â€¢ Selected icon set must have 'supportsResponsive' boolean set to true (ex: iconSet.supportsResponsive = true)
---   â€¢ When an InputAction is Pressed or Released, call UpdateUI() with an InputAction alone for the second parameter (for better performance)
+--   • Use '_active' table variants in icon set when the input action is pressed/held
+--   • Selected icon set must include '<platform>_active' tables
+--   • Selected icon set must have 'supportsResponsive' boolean set to true (ex: iconSet.supportsResponsive = true)
+--   • When an InputAction is Pressed or Released, call UpdateUI() with an InputAction alone for the second parameter (for better performance)
 Settings.ENABLE_RESPONSIVE = true
 
 -- (OPTIONAL)
 -- Dynamic scaling makes it easier to read button hints for console users playing from a distance.
---   â€¢ Example: 1à— font/icon size at 1080px width â†’ 1.4à— font/icon size at 1920px width)
---   â€¢ Only active for gamepad (console) users
---   â€¢ Tweak settings below to ensure your display style scales appropriately
+--   • Example: 1× font/icon size at 1080px width → 1.4× font/icon size at 1920px width)
+--   • Only active for gamepad (console) users
+--   • Tweak settings below to ensure your display style scales appropriately
 Settings.ENABLE_DYNAMIC_SCALING = true
 Settings.MIN_SCREEN_WIDTH = 1080 -- When screen width > MIN_SCREEN_WIDTH, font/icon size begins scaling.
 Settings.MAX_SCREEN_WIDTH = 1920 -- When screen width > MAX_SCREEN_WIDTH, font/icon size stops scaling.
-Settings.BASE_FONT_SIZE = 16 -- ActionText font size when screen width â‰¤ MIN_SCREEN_WIDTH.
-Settings.BASE_ICON_SIZE = 30 -- IconImage size when screen width â‰¤ MIN_SCREEN_WIDTH.
-Settings.MAX_SCALE_FACTOR = 1.4 -- Final font/icon scale reached when screen width â‰¥ MAX_SCREEN_WIDTH.
+Settings.BASE_FONT_SIZE = 16 -- ActionText font size when screen width ≤ MIN_SCREEN_WIDTH.
+Settings.BASE_ICON_SIZE = 30 -- IconImage size when screen width ≤ MIN_SCREEN_WIDTH.
+Settings.MAX_SCALE_FACTOR = 1.4 -- Final font/icon scale reached when screen width ≥ MAX_SCREEN_WIDTH.
 
 
 

@@ -2066,4 +2066,3 @@ function Promise.onUnhandledRejection(callback)
 end
 
 return Promise
-

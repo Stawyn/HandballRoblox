@@ -1,0 +1,23 @@
+{
+  "className": "ScrollingFrame",
+  "properties": {
+    "Active": true,
+    "AnchorPoint": [0.5, 0.5],
+    "Attributes": {
+      "AutoScaleDefaultsApplied": true
+    },
+    "AutomaticCanvasSize": "Y",
+    "BackgroundColor3": [1, 1, 1],
+    "BackgroundTransparency": 1,
+    "BorderColor3": [0.1098, 0.1686, 0.2118],
+    "BorderSizePixel": 0,
+    "CanvasSize": [[0.0, 0.0], [0.0, 0.0]],
+    "Position": [[0.5, 0.0], [0.57, 0.0]],
+    "ScrollBarImageTransparency": 0.4,
+    "ScrollBarThickness": 4,
+    "ScrollingDirection": "Y",
+    "Size": [[0.95, 0.0], [0.8, 0.0]],
+    "VerticalScrollBarInset": "ScrollBar",
+    "ZIndex": 150
+  }
+}

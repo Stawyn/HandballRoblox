@@ -1,12 +1,46 @@
-local Players = game:GetService("Players")
+--[[
+    ================================================================================
+    MÓDULO: RefereeClient
+    ================================================================================
+    Descrição: Interface do árbitro no cliente - UI e controles de partida.
+               Gerencia botões de gol, timer, placar e comandos de árbitro.
+    
+    Funcionalidades:
+        - Adicionar/remover gols (Home/Away)
+        - Alterar nomes dos times
+        - Controlar timer (iniciar, pausar, resetar)
+        - Toggle ball timer
+        - Confirmação de reset de partida
+        - Sincronização com servidor
+    
+    UI Elements:
+        - MainFrame: Container principal
+        - HomeFrame/AwayFrame: Controles por time
+        - TimerPanel: Controles de cronômetro
+        - ResetConfirmation: Diálogo de confirmação
+    
+    Autor: Sistema ABH
+    ================================================================================
+]]
 
-local ClientNetwork = require(game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Implementation"):WaitForChild("ClientNetwork"))
+--// ============================================================================
+--// SETOR: SERVIÇOS E DEPENDÊNCIAS
+--// ============================================================================
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local ClientNetwork = require("../Implementation/ClientNetwork")
 local RefereeEvent = ClientNetwork.RefereeEvent
 local RefereeEventRemote = ClientNetwork.RefereeEventRemote
 
+--// ============================================================================
+--// SETOR: REFERÊNCIAS
+--// ============================================================================
+
 local localPlayer = Players.LocalPlayer :: Player
 
--- DATA STUFF
+-- Data Values
 local data = workspace:WaitForChild("Core"):WaitForChild("Data") :: Folder
 local awayName = data:WaitForChild("AwayName") :: StringValue
 local homeName = data:WaitForChild("HomeName") :: StringValue
@@ -14,35 +48,58 @@ local ballTimer = data:WaitForChild("BallTimer") :: BoolValue
 local matchPaused = data:WaitForChild("MatchPaused") :: BoolValue
 local homeScoreNumberValue = data:WaitForChild("HomeScore") :: NumberValue
 local awayScoreNumberValue = data:WaitForChild("AwayScore") :: NumberValue
+local HALF = data:WaitForChild("Half") :: NumberValue
 
--- REFEREE STUFF
+-- UI References
 local playerGui = localPlayer.PlayerGui
 local refereeUI = playerGui:WaitForChild("RefereeUI", math.huge)
 local refFrame = refereeUI:WaitForChild("MainFrame")
 local awayFrame = refFrame:WaitForChild("AwayFrame")
 local homeFrame = refFrame:WaitForChild("HomeFrame")
 
-
--- HOME TEAM STUFF
+-- Home Team UI
 local homeAddGoal = homeFrame:WaitForChild("AddGoal") :: ImageButton
 local homeRemoveGoal = homeFrame:WaitForChild("RemoveGoal") :: ImageButton
 local homeTeamName = homeFrame:WaitForChild("NameTextBox") :: TextBox
 local homeScore = homeFrame:WaitForChild("Score") :: TextLabel
 
--- AWAY TEAM STUFF
+-- Away Team UI
 local awayAddGoal = awayFrame:WaitForChild("AddGoal") :: ImageButton
 local awayRemoveGoal = awayFrame:WaitForChild("RemoveGoal") :: ImageButton
 local awayTeamName = awayFrame:WaitForChild("NameTextBox") :: TextBox
 local awayScore = awayFrame:WaitForChild("Score") :: TextLabel
 
--- TIMER/BALL TIMER STUFF
+-- Timer UI
 local timerFrame = refFrame:WaitForChild("TimerPanel"):WaitForChild("TimerFrame") :: Frame
 local ballTimerStatus = refFrame:WaitForChild("TimerPanel"):WaitForChild("BallTimer"):WaitForChild("BallTimerStatus") :: ImageButton
 local pause = timerFrame:WaitForChild("Pause") :: ImageButton
 local reset = timerFrame:WaitForChild("Reset") :: ImageButton
 local resume = timerFrame:WaitForChild("Resume") :: ImageButton
 
--- CONFIRMATION UI
+-- Network
+local NETWORK_FOLDER = ReplicatedStorage:WaitForChild("Network") :: Folder
+local STATS_EVENT = NETWORK_FOLDER:WaitForChild("StatsUpdate") :: RemoteEvent
+
+--// ============================================================================
+--// SETOR: CONSTANTES DE ÍCONES
+--// ============================================================================
+
+local DEACTIVATED_BALL_TIMER = {
+	Image = "rbxassetid://8445519745",
+	ImageRectOffset = Vector2.new(940, 784),
+	ImageRectSize = Vector2.new(48, 48),
+}
+
+local ACTIVATED_BALL_TIMER = {
+	Image = "rbxassetid://8445519745",
+	ImageRectOffset = Vector2.new(4, 836),
+	ImageRectSize = Vector2.new(48, 48),
+}
+
+--// ============================================================================
+--// SETOR: UI DE CONFIRMAÇÃO
+--// ============================================================================
+
 local confirmationFrame = Instance.new("Frame")
 confirmationFrame.Name = "ResetConfirmation"
 confirmationFrame.Size = UDim2.new(0, 320, 0, 160)
@@ -86,7 +143,7 @@ Instance.new("UICorner", yesButton).CornerRadius = UDim.new(0, 6)
 local noButton = Instance.new("TextButton")
 noButton.Size = UDim2.new(0, 110, 0, 45)
 noButton.Position = UDim2.new(0.75, -55, 0.75, -22)
-noButton.Text = "NàƒO"
+noButton.Text = "NÃO"
 noButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
 noButton.TextColor3 = Color3.new(1, 1, 1)
 noButton.Font = Enum.Font.SourceSansBold
@@ -94,6 +151,52 @@ noButton.TextSize = 22
 noButton.ZIndex = 1000
 noButton.Parent = confirmationFrame
 Instance.new("UICorner", noButton).CornerRadius = UDim.new(0, 6)
+
+--// ============================================================================
+--// SETOR: FUNÇÕES AUXILIARES
+--// ============================================================================
+
+--- Mostra diálogo de confirmação de reset
+local function showResetConfirmation()
+	confirmationFrame.Visible = true
+	confirmationFrame:TweenPosition(UDim2.new(0.5, 0, 0.5, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.3, true)
+end
+
+--- Atualiza ícone do ball timer
+local function onBallTimerUpdateStatus()
+	local iconData = if ballTimer.Value then ACTIVATED_BALL_TIMER else DEACTIVATED_BALL_TIMER
+	ballTimerStatus.Image = iconData.Image
+	ballTimerStatus.ImageRectOffset = iconData.ImageRectOffset
+	ballTimerStatus.ImageRectSize = iconData.ImageRectSize
+end
+
+--- Atualiza placar na UI
+local function onScoreUpdate()
+	homeScore.Text = tostring(homeScoreNumberValue.Value)
+	awayScore.Text = tostring(awayScoreNumberValue.Value)
+end
+
+--- Atualiza estado de pausa na UI
+local function onMatchPausedUpdate()
+	if matchPaused.Value then
+		pause.Visible = false
+		resume.Visible = true
+		timerFrame.BackgroundTransparency = 0.5
+	else
+		if HALF.Value > 0 then
+			pause.Visible = true
+			resume.Visible = false
+		else
+			pause.Visible = false
+			resume.Visible = true
+		end
+		timerFrame.BackgroundTransparency = 0
+	end
+end
+
+--// ============================================================================
+--// SETOR: CONEXÕES - CONFIRMAÇÃO
+--// ============================================================================
 
 yesButton.MouseButton1Click:Connect(function()
 	RefereeEvent:ResetMatch()
@@ -104,34 +207,21 @@ noButton.MouseButton1Click:Connect(function()
 	confirmationFrame.Visible = false
 end)
 
-local function showResetConfirmation()
-	confirmationFrame.Visible = true
-	confirmationFrame:TweenPosition(UDim2.new(0.5, 0, 0.5, 0), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.3, true)
-end
-
--- Handle server-side confirmation requests (from ;reset command)
--- Connected early to ensure it works even if other parts of the script yield
-RefereeEventRemote.OnClientEvent:Connect(function(data)
-	if data and data.action == "SHOW_CONFIRM_RESET" then
+-- Handle server-side confirmation requests
+RefereeEventRemote.OnClientEvent:Connect(function(eventData)
+	if eventData and eventData.action == "SHOW_CONFIRM_RESET" then
 		showResetConfirmation()
 	end
 end)
 
-local DEACTIVATED_BALL_TIMER = {
-	Image = "rbxassetid://8445519745",
-	ImageRectOffset = Vector2.new(940, 784),
-	ImageRectSize = Vector2.new(48, 48),
-}
-local ACTIVATED_BALL_TIMER = {
-	Image = "rbxassetid://8445519745",
-	ImageRectOffset = Vector2.new(4, 836),
-	ImageRectSize = Vector2.new(48, 48),
-}
+--// ============================================================================
+--// SETOR: CONEXÕES - GOLS
+--// ============================================================================
 
--- IMPLEMENTATION
 homeAddGoal.MouseButton1Click:Connect(function()
 	RefereeEvent:AddGoal(true)
 end)
+
 awayAddGoal.MouseButton1Click:Connect(function()
 	RefereeEvent:AddGoal(false)
 end)
@@ -139,24 +229,35 @@ end)
 homeRemoveGoal.MouseButton1Click:Connect(function()
 	RefereeEvent:RemoveGoal(true)
 end)
+
 awayRemoveGoal.MouseButton1Click:Connect(function()
 	RefereeEvent:RemoveGoal(false)
 end)
+
+--// ============================================================================
+--// SETOR: CONEXÕES - NOMES DE TIMES
+--// ============================================================================
 
 homeTeamName.FocusLost:Connect(function(enterPressed)
 	if enterPressed then
 		RefereeEvent:ChangeTeamName(homeTeamName.Text, true)
 	end
 end)
+
 awayTeamName.FocusLost:Connect(function(enterPressed)
 	if enterPressed then
 		RefereeEvent:ChangeTeamName(awayTeamName.Text, false)
 	end
 end)
 
+--// ============================================================================
+--// SETOR: CONEXÕES - TIMER
+--// ============================================================================
+
 pause.MouseButton1Click:Connect(function()
 	RefereeEvent:PauseMatch()
 end)
+
 resume.MouseButton1Click:Connect(function()
 	if matchPaused.Value then
 		RefereeEvent:ResumeMatch()
@@ -164,79 +265,39 @@ resume.MouseButton1Click:Connect(function()
 		RefereeEvent:BeginLeague()
 	end
 end)
+
 reset.MouseButton1Click:Connect(function()
 	showResetConfirmation()
 end)
+
 ballTimerStatus.MouseButton1Click:Connect(function()
 	RefereeEvent:ToggleBallTimer()
 end)
 
--- UI UPDATE
-function onBallTimerUpdateStatus()
-	if ballTimer.Value then
-		ballTimerStatus.Image = ACTIVATED_BALL_TIMER.Image
-		ballTimerStatus.ImageRectOffset = ACTIVATED_BALL_TIMER.ImageRectOffset
-		ballTimerStatus.ImageRectSize = ACTIVATED_BALL_TIMER.ImageRectSize
-	else
-		ballTimerStatus.Image = DEACTIVATED_BALL_TIMER.Image
-		ballTimerStatus.ImageRectOffset = DEACTIVATED_BALL_TIMER.ImageRectOffset
-		ballTimerStatus.ImageRectSize = DEACTIVATED_BALL_TIMER.ImageRectSize
-	end
-end
-ballTimer:GetPropertyChangedSignal("Value"):Connect(onBallTimerUpdateStatus)
-onBallTimerUpdateStatus()
+--// ============================================================================
+--// SETOR: SINCRONIZAÇÃO COM SERVIDOR
+--// ============================================================================
 
-function onScoreUpdate()
-	homeScore.Text = tostring(homeScoreNumberValue.Value)
-	awayScore.Text = tostring(awayScoreNumberValue.Value)
-end
+ballTimer:GetPropertyChangedSignal("Value"):Connect(onBallTimerUpdateStatus)
 homeScoreNumberValue:GetPropertyChangedSignal("Value"):Connect(onScoreUpdate)
 awayScoreNumberValue:GetPropertyChangedSignal("Value"):Connect(onScoreUpdate)
-onScoreUpdate()
--- React to match paused state so the referee UI mirrors server-side pause/resume
-local NETWORK_FOLDER = game:GetService("ReplicatedStorage"):WaitForChild("Network") :: Folder
-local STATS_EVENT = NETWORK_FOLDER:WaitForChild("StatsUpdate") :: RemoteEvent
-
-local HALF = data:WaitForChild("Half") :: NumberValue
-
-function onMatchPausedUpdate()
-	if matchPaused.Value then
-		-- When paused, show resume prominently and disable pause button
-		pause.Visible = false
-		resume.Visible = true
-		timerFrame.BackgroundTransparency = 0.5
-	else
-		-- When not paused, check if match is active
-		if HALF.Value > 0 then
-			pause.Visible = true
-			resume.Visible = false
-		else
-			-- Match not started or ended, show Begin (resume button)
-			pause.Visible = false
-			resume.Visible = true
-		end
-		timerFrame.BackgroundTransparency = 0
-	end
-end
 matchPaused:GetPropertyChangedSignal("Value"):Connect(onMatchPausedUpdate)
 HALF:GetPropertyChangedSignal("Value"):Connect(onMatchPausedUpdate)
+
+-- Inicialização
+onBallTimerUpdateStatus()
+onScoreUpdate()
 onMatchPausedUpdate()
 
--- Keep UI synced with statistics reset events (fired on server GameStatistics.Reset)
+-- Sync com reset de estatísticas
 STATS_EVENT.OnClientEvent:Connect(function(action, ...)
 	if action == "Reset" then
-		-- Scores and other UI will be updated by value signals, but ensure visual state resets
 		onScoreUpdate()
 		onBallTimerUpdateStatus()
-		-- clear paused state visuals
 		if matchPaused.Value then
 			onMatchPausedUpdate()
 		end
 	end
 end)
 
-
 return {}
-
-
-

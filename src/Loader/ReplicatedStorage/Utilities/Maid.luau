@@ -1,3 +1,4 @@
+--!nocheck
 ---	Manages the cleaning of events and other things.
 -- Useful for encapsulating state and make deconstructors easy
 -- @classmod Maid
@@ -6,15 +7,29 @@
 local Maid = {}
 Maid.ClassName = "Maid"
 
+-- Intellisense
+export type Function = {(any)->nil}
+export type promise = {}
+export type Maid = {
+	isMaid : (any)->boolean,
+	GiveTask : (Maid, any)->nil,
+	GivePromise : (Maid, promise)->nil,
+	DoCleaning : (Maid)->nil,
+	Destroy : (Maid)->nil,
+}
+
 --- Returns a new Maid object
 -- @constructor Maid.new()
 -- @treturn Maid
 function Maid.new()
-	local self = {}
+	local newMaid : Maid = setmetatable({
+		_tasks = {}
+	}, Maid)
+	return  newMaid
+end
 
-	self._tasks = {}
-
-	return setmetatable(self, Maid)
+function Maid.isMaid(value)
+	return type(value) == "table" and value.ClassName == "Maid"
 end
 
 --- Returns Maid[key] if not part of Maid metatable
@@ -27,13 +42,15 @@ function Maid:__index(index)
 	end
 end
 
---- Add a task to clean up
+--- Add a task to clean up. Tasks given to a maid will be cleaned when
+--  maid[index] is set to a different value.
 -- @usage
 -- Maid[key] = (function)         Adds a task to perform
 -- Maid[key] = (event connection) Manages an event connection
 -- Maid[key] = (Maid)             Maids can act as an event connection, allowing a Maid to have other maids to clean up.
 -- Maid[key] = (Object)           Maids can cleanup objects with a `Destroy` method
--- Maid[key] = nil                Removes a named task. If the task is an event, it is disconnected. If it is an object, it is destroyed.
+-- Maid[key] = nil                Removes a named task. If the task is an event, it is disconnected. If it is an object,
+--                                it is destroyed.
 function Maid:__newindex(index, newTask)
 	if Maid[index] ~= nil then
 		error(("'%s' is reserved"):format(tostring(index)), 2)
@@ -41,6 +58,11 @@ function Maid:__newindex(index, newTask)
 
 	local tasks = self._tasks
 	local oldTask = tasks[index]
+
+	if oldTask == newTask then
+		return
+	end
+
 	tasks[index] = newTask
 
 	if oldTask then
@@ -58,10 +80,34 @@ end
 -- @param task An item to clean
 -- @treturn number taskId
 function Maid:GiveTask(task)
-	assert(task)
+	if not task then
+		error("Task cannot be false or nil", 2)
+	end
+
 	local taskId = #self._tasks+1
 	self[taskId] = task
+
+	if type(task) == "table" and (not task.Destroy) then
+		warn("[Maid.GiveTask] - Gave table task without .Destroy\n\n" .. debug.traceback())
+	end
+
 	return taskId
+end
+
+function Maid:GivePromise(promise)
+	if not promise:IsPending() then
+		return promise
+	end
+
+	local newPromise = promise.resolved(promise)
+	local id = self:GiveTask(newPromise)
+
+	-- Ensure GC
+	newPromise:Finally(function()
+		self[id] = nil
+	end)
+
+	return newPromise
 end
 
 --- Cleans up all tasks.

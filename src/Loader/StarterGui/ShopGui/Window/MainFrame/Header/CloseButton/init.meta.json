@@ -1,0 +1,19 @@
+{
+  "className": "TextButton",
+  "properties": {
+    "AnchorPoint": [1, 0.5],
+    "BackgroundColor3": [0.1373, 0.1373, 0.1373],
+    "FontFace": {
+      "family": "rbxasset://fonts/families/GothamSSm.json",
+      "weight": "Bold",
+      "style": "Normal",
+      "cachedFaceId": null
+    },
+    "Position": [[1.0, -10.0], [0.5, 0.0]],
+    "Size": [[0.0, 30.0], [0.0, 30.0]],
+    "Text": "✕",
+    "TextColor3": [0.7059, 0.7059, 0.7059],
+    "TextSize": 16,
+    "ZIndex": 102
+  }
+}

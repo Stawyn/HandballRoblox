@@ -1,51 +1,38 @@
 --[[
-	================================================================================
-	MÓDULO: Vector
-	================================================================================
-	
-	Descrição:
-		Utilitários para conversão entre tipos de vetor.
-		Converte entre Vector3 (Roblox) e vector (biblioteca nativa de Luau).
-	
-	Nota:
-		O tipo 'vector' é o tipo nativo de Luau, diferente de Vector3.
-		Use essas funções quando precisar trabalhar com ambos os tipos.
-	
-	Autor: Sistema ABH
-	================================================================================
+    ================================================================================
+    MÓDULO: Vector
+    ================================================================================
+    Descrição: Funções de conversão entre Vector3 (Roblox) e vector (nativo Luau).
+    
+    Funções:
+        - Vector3ToVectorLib: Converte Vector3 para vector nativo
+        - VectorLibToVector3: Converte vector nativo para Vector3
+    
+    Nota: O tipo 'vector' é o tipo nativo do Luau (vector.create),
+          enquanto Vector3 é o tipo do Roblox com métodos adicionais.
+    
+    Autor: Sistema ABH
+    ================================================================================
 ]]
 
 local Vector = {}
 
 --// ============================================================================
---// SETOR: Conversões de Vetor
+--// SETOR: CONVERSÕES
 --// ============================================================================
 
---[[
-	Converte um Vector3 (Roblox) para vector (Luau nativo).
-	
-	@param v Vector3 - O vetor Roblox a ser convertido
-	@return vector - O vetor nativo resultante
-	
-	Exemplo:
-		local vetorNativo = Vector:Vector3ToVectorLib(Vector3.new(1, 2, 3))
-]]
+--- Converte Vector3 (Roblox) para vector (Luau nativo)
+-- @param v Vector3 - Vetor Roblox
+-- @return vector - Vetor nativo Luau
 function Vector:Vector3ToVectorLib(v: Vector3): vector
 	return vector.create(v.X, v.Y, v.Z)
 end
 
---[[
-	Converte um vector (Luau nativo) para Vector3 (Roblox).
-	
-	@param v vector - O vetor nativo a ser convertido
-	@return Vector3 - O vetor Roblox resultante
-	
-	Exemplo:
-		local vetorRoblox = Vector:VectorLibToVector3(vector.create(1, 2, 3))
-]]
+--- Converte vector (Luau nativo) para Vector3 (Roblox)
+-- @param v vector - Vetor nativo Luau
+-- @return Vector3 - Vetor Roblox
 function Vector:VectorLibToVector3(v: vector): Vector3
 	return Vector3.new(v.x, v.y, v.z)
 end
 
 return Vector
-

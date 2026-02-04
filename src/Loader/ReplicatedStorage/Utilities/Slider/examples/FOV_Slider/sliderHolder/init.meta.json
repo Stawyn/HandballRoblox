@@ -1,0 +1,9 @@
+{
+  "className": "Frame",
+  "properties": {
+    "BackgroundColor3": [0, 0, 0],
+    "Position": [[0.2668, 0.0], [0.0323, 0.0]],
+    "Selectable": true,
+    "Size": [[0.4665, 0.0], [0.051, 0.0]]
+  }
+}

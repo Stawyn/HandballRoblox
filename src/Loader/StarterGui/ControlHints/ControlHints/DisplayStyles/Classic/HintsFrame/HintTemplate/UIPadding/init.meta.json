@@ -1,0 +1,9 @@
+{
+  "className": "UIPadding",
+  "properties": {
+    "PaddingBottom": [0, 6],
+    "PaddingLeft": [0, 14],
+    "PaddingRight": [0, 10],
+    "PaddingTop": [0, 6]
+  }
+}

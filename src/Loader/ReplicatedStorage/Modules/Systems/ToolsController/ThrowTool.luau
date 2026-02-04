@@ -1,117 +1,135 @@
 --[[
-	================================================================================
-	MÓDULO: ThrowTool (Ferramenta de Arremesso)
-	================================================================================
-	
-	Descrição:
-		Módulo cliente que gerencia a ferramenta de arremesso (ThrowTool):
-		- Carregamento de poder
-		- Animações de carregamento e arremesso
-		- Fake throw (finta)
-		- Sistema de tackle
-		- Integração com PowerUI
-	
-	Autor: Sistema ABH
-	Refatorado: Remoção de função duplicada, documentação em PT-BR
-	================================================================================
+    ================================================================================
+    MÓDULO: ThrowTool
+    ================================================================================
+    Descrição: Controlador da ferramenta de arremesso - gerencia charging,
+               throw, fake throw e tackle.
+    
+    Funcionalidades:
+        - Carregamento de força (0-100%)
+        - Arremesso com direção calculada
+        - Fake throw (cancela arremesso)
+        - Tackle para roubar bola
+        - Animações de charge/throw
+    
+    Constantes:
+        - TIME_TILL_POWER_REACHES_FULL: 0.5s para 100%
+        - GAIN_RATE: 200%/s de ganho de força
+    
+    Autor: Sistema ABH
+    ================================================================================
 ]]
 
 --// ============================================================================
---// SETOR: Serviços do Roblox
+--// SETOR: SERVIÇOS E DEPENDÊNCIAS
 --// ============================================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local ContextActionService = game:GetService("ContextActionService")
+
+local ClientNetwork = require("../../Implementation/ClientNetwork")
+local Maid = require("../../../Utilities/Maid")
+local FixedThrowPower = require("../../../Modules/Implementation/ThrowPower")
+local PowerUI = require("../../../Modules/Implementation/PowerUI")
+local Animations = require("../../../Utilities/ABHAnimations")
+local VectorLib = require("../../../Utilities/Vector")
+local InputSystem = require("../../Implementation/InputSystem")
 
 --// ============================================================================
---// SETOR: Definição do Módulo
+--// SETOR: CONSTANTES
+--// ============================================================================
+
+local TIME_TILL_POWER_REACHES_FULL = 0.5
+local GAIN_RATE = 100 / TIME_TILL_POWER_REACHES_FULL
+
+--// ============================================================================
+--// SETOR: ESTADO
+--// ============================================================================
+
+local charging = false
+local isThrowing = false
+local localPlayer = Players.LocalPlayer :: Player
+
+--// ============================================================================
+--// SETOR: MÓDULO
 --// ============================================================================
 
 local ThrowTool = {}
 
---// ============================================================================
---// SETOR: Dependências
---// ============================================================================
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
--- Espera o Loader terminar
-ReplicatedStorage:WaitForChild("LoaderReady")
-
-local Modules = ReplicatedStorage:WaitForChild("Modules")
-local Utilities = ReplicatedStorage:WaitForChild("Utilities")
-
-local ClientNetwork = require(Modules:WaitForChild("Implementation"):WaitForChild("ClientNetwork"))
-local Maid = require(Utilities:WaitForChild("Maid"))
-local FixedThrowPower = require(Modules:WaitForChild("Implementation"):WaitForChild("ThrowPower"))
-local PowerUI = require(Modules:WaitForChild("Implementation"):WaitForChild("PowerUI"))
-local Animations = require(Utilities:WaitForChild("ABHAnimations"))
-local VectorLib = require(Utilities:WaitForChild("Vector"))
-local InputSystem = require(Modules:WaitForChild("Implementation"):WaitForChild("InputSystem"))
-local ToolUtils = require(Utilities:WaitForChild("ToolUtils"))
+local SINK_ACTION_NAME = "ThrowToolSink"
 
 --// ============================================================================
---// SETOR: Constantes
+--// SETOR: FUNÇÕES AUXILIARES
 --// ============================================================================
 
-local TIME_TILL_POWER_REACHES_FULL = 0.5  -- Tempo para atingir 100% de força
-local GAIN_RATE = 100 / TIME_TILL_POWER_REACHES_FULL  -- Taxa de ganho de força/segundo
+--- Define o bloqueio da ferramenta (Backpack e Drop)
+local function setToolLock(locked: boolean, tool: Tool?)
+	-- Se estiver arremessando (animação), não permite desbloquear via setCharging(false)
+	if isThrowing and not locked then return end
+	
+	-- Bloqueia teclas numéricas 1-0 para impedir troca de ferramenta mantendo a UI visível
+	if locked then
+		ContextActionService:BindActionAtPriority(SINK_ACTION_NAME, function()
+			return Enum.ContextActionResult.Sink
+		end, false, 2000, 
+		Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, 
+		Enum.KeyCode.Four, Enum.KeyCode.Five, Enum.KeyCode.Six, 
+		Enum.KeyCode.Seven, Enum.KeyCode.Eight, Enum.KeyCode.Nine, 
+		Enum.KeyCode.Zero)
+	else
+		ContextActionService:UnbindAction(SINK_ACTION_NAME)
+	end
 
---// ============================================================================
---// SETOR: Estado Global
---// ============================================================================
-
-local charging = false  -- Se está carregando o arremesso
-local localPlayer = Players.LocalPlayer :: Player
-
---// ============================================================================
---// SETOR: Funções Auxiliares
---// ============================================================================
-
---- Verifica se a ThrowTool está equipada (usa módulo centralizado)
--- @return boolean - true se a ferramenta está equipada
-local function isToolEquipped(): boolean
-	return ToolUtils.isToolEquipped(localPlayer, "ThrowTool")
+	-- Define se a ferramenta pode ser dropada
+	if tool then
+		tool.CanBeDropped = not locked
+	elseif localPlayer.Character then
+		local equippedTool = localPlayer.Character:FindFirstChild("ThrowTool")
+		if equippedTool and equippedTool:IsA("Tool") then
+			equippedTool.CanBeDropped = not locked
+		end
+	end
 end
 
---// ============================================================================
---// SETOR: API Pública
---// ============================================================================
+--- Verifica se ThrowTool está equipada
+local function CheckToolEquipped(): boolean
+	local backpack = localPlayer.Backpack
+	local character = localPlayer.Character
+	if not character then return false end
 
---- Retorna se o jogador está carregando um arremesso
+	if backpack:FindFirstChild("ThrowTool") then return true end
+	if character:FindFirstChild("ThrowTool") then return true end
+
+	return false
+end
+
+--- Retorna estado de charging
 function ThrowTool:GetCharging(): boolean
 	return charging
 end
 
 --// ============================================================================
---// SETOR: Inicialização da Ferramenta
+--// SETOR: INICIALIZAÇÃO
 --// ============================================================================
 
 --- Inicializa a ferramenta de arremesso
--- @param tool Tool - Instà¢ncia da ferramenta
 function ThrowTool:Initialize(tool: Tool)	
-	-- Estado local da ferramenta
 	local power = 0
 	local uiCooldown = false
-	local switchHandsCooldown = false
-	local tackleCooldown = false
-	local chargingThrowAnimation: AnimationTrack? = nil
-
-	-- Maids para gerenciamento de conexões
 	local throwMaid = Maid.new()
 	local keybindMaid = Maid.new()
 	local powerMaid = Maid.new()
+	local chargingThrowAnimation: AnimationTrack? = nil
+	local tackleCooldown = false
 
-	--// ----------------------------------------------------------------
-	--// SUB-SETOR: Funções Internas
-	--// ----------------------------------------------------------------
-
-	--- Define estado de carregamento e gerencia animação
+	--- Define estado de charging e animação
 	local function setCharging(state: boolean)
 		local character = localPlayer.Character
 		if not character then
 			charging = state
+			setToolLock(state, tool)
 			return
 		end
 
@@ -119,172 +137,155 @@ function ThrowTool:Initialize(tool: Tool)
 		local animator = humanoid:WaitForChild("Animator") :: Animator
 
 		if not state then
-			-- Para animação de carregamento
 			if chargingThrowAnimation then
 				chargingThrowAnimation:Stop()
 			end
 		else
-			-- Inicia animação de carregamento baseada na mão
 			local currentHand = localPlayer:GetAttribute("CurrentHand")
 			local animationToLoad = if currentHand == "R" 
-				then Animations.RHandChargeThrow
+				then Animations.RHandChargeThrow 
 				else Animations.LHandChargeThrow
 
 			chargingThrowAnimation = animator:LoadAnimation(animationToLoad)
 			chargingThrowAnimation:Play()
 		end
 
+
 		charging = state
+		setToolLock(state, tool)
 	end
 
-	--- Reproduz animação de arremesso
-	local function playThrowAnimation()
+	--- Toca animação de arremesso
+	local function playThrowAnimation(): AnimationTrack?
 		local character = localPlayer.Character
-		if not character then
-			return
-		end
+		if not character then return nil end
 
 		local currentHand = localPlayer:GetAttribute("CurrentHand")
 		local animator = character:WaitForChild("Humanoid"):WaitForChild("Animator") :: Animator
 
 		local throwAnimation = if currentHand == "R" 
-			then Animations.RHandThrow
+			then Animations.RHandThrow 
 			else Animations.LHandThrow
 
 		local animationTrack = animator:LoadAnimation(throwAnimation)
 		animationTrack:Play()
+		return animationTrack
 	end
 
-	--- Executa o arremesso
+	--- Verifica se ferramenta está equipada
+	local function checkToolEquipped(): boolean
+		if not localPlayer.Character then return false end
+		if not localPlayer.Character:FindFirstChild("ThrowTool") then return false end
+		return true
+	end
+
+	--- Executa arremesso
 	local function handleThrow()
-		if not isToolEquipped() then
-			return
-		end
-		if not charging then
-			return
-		end
+		if not checkToolEquipped() or not charging then return end
 
 		local character = localPlayer.Character
-		if not character then
-			return
-		end
-
-		-- Verifica se tem posse da bola
-		if not character:FindFirstChild("BallOwnership") then
-			return
-		end
+		if not character or not character:FindFirstChild("BallOwnership") then return end
 
 		local humanoidRootPart = character:FindFirstChild("HumanoidRootPart") :: BasePart
 		local hrpPosition = humanoidRootPart.Position
-
-		-- Obtém direção do mouse/cà¢mera
 		local mousePosition = localPlayer:GetMouse().Hit.LookVector
 		local mouseDirection = localPlayer:GetMouse().UnitRay.Direction
 
-		-- Mobile não tem mouse, usa direção da cà¢mera
+		-- Mobile usa câmera ao invés de mouse
 		if localPlayer:GetAttribute("Mobile") == true then
 			mouseDirection = workspace.CurrentCamera.CFrame.LookVector
 			mousePosition = mouseDirection
 		end
 
 		local direction = humanoidRootPart.CFrame.LookVector
-
-		-- Envia evento de arremesso para o servidor
 		ClientNetwork.ThrowEvent:Throw(power, {
 			humanoidRootPartDirection = vector.create(direction.X, direction.Y, direction.Z),
 			mouseDirection = vector.create(mouseDirection.X, mouseDirection.Y, mouseDirection.Z),
 			mousePosition = vector.create(mousePosition.X, mousePosition.Y, mousePosition.Z),
 			humanoidRootPartPosition = vector.create(hrpPosition.X, hrpPosition.Y, hrpPosition.Z)
 		})
-
-		playThrowAnimation()
+		
+		isThrowing = true
+		local track = playThrowAnimation()
+		
+		if track then
+			task.delay(track.Length, function()
+				isThrowing = false
+				setToolLock(false, tool)
+			end)
+		else
+			isThrowing = false
+			setToolLock(false, tool)
+		end
 	end
 
-	--// ----------------------------------------------------------------
-	--// SUB-SETOR: Conexào de Equipar
-	--// ----------------------------------------------------------------
+	--// ============================================================================
+	--// CONEXÕES
+	--// ============================================================================
 
 	tool.Equipped:Connect(function()
-		-- Habilita contexto de input
 		InputSystem.Contexts["Throw Tool"].Enabled = true 
 
-		-- Conexào: Iniciar carregamento
+		-- Throw
 		keybindMaid:GiveTask(InputSystem.Actions["Throw Tool"].Throw.Pressed:Connect(function()
 			setCharging(true)
 			uiCooldown = true
 		end))
-
-		-- Conexào: Soltar = arremessar
+		
 		keybindMaid:GiveTask(InputSystem.Actions["Throw Tool"].Throw.Released:Connect(function()
-			if not uiCooldown then 
-				return
-			end
-
+			if not uiCooldown then return end
 			handleThrow()
 			setCharging(false)
 			power = 0
 			uiCooldown = false
 		end))
 
-		-- Conexào: Tackle
+		-- Tackle
 		keybindMaid:GiveTask(InputSystem.Actions["Throw Tool"].Tackle.Pressed:Connect(function()
-			-- não pode tacklear se tem bola
-			if localPlayer.Character and localPlayer.Character:FindFirstChild("BallOwnership") then
-				return
-			end
-			if tackleCooldown then 
-				return
-			end
-			if charging then 
-				return
-			end
+			if localPlayer.Character and localPlayer.Character:FindFirstChild("BallOwnership") then return end
+			if tackleCooldown or charging then return end
 
 			tackleCooldown = true
 			ClientNetwork.TacklingFunction:Tackle()
 			tackleCooldown = false
 		end))
 
-		-- Conexào: Fake Throw (finta)
+		-- Fake Throw
 		keybindMaid:GiveTask(InputSystem.Actions["Throw Tool"]["Fake Throw"].Pressed:Connect(function()
-			if not uiCooldown then
-				return
-			end
+			if not uiCooldown then return end
 
 			setCharging(false)
 			if localPlayer.Character and localPlayer.Character:FindFirstChild("BallOwnership") then
 				playThrowAnimation()
 			end
+			setToolLock(false, tool)
 			uiCooldown = false
 		end))
 	end)
 
-	--// ----------------------------------------------------------------
-	--// SUB-SETOR: Conexào de Desequipar
-	--// ----------------------------------------------------------------
-
 	tool.Unequipped:Connect(function()
-		-- Desabilita contexto de input
+		-- Se o jogador tentar remover a tool enquanto segura a bola, forçar re-equip
+		if localPlayer.Character and localPlayer.Character:FindFirstChild("BallOwnership") then
+			task.defer(function()
+				local humanoid = localPlayer.Character:FindFirstChild("Humanoid") :: Humanoid?
+				if humanoid and tool.Parent == localPlayer.Backpack then
+					humanoid:EquipTool(tool)
+				end
+			end)
+			return
+		end
+		
 		InputSystem.Contexts["Throw Tool"].Enabled = false
-
-		-- Limpa conexões
 		throwMaid:DoCleaning()
 		keybindMaid:DoCleaning()
 		charging = false
-
-		-- Para animação se existir
+		isThrowing = false
+		setToolLock(false, tool)
+		
 		if chargingThrowAnimation then
 			chargingThrowAnimation:Stop()
 		end
-
-		-- Solta bola se tiver
-		if localPlayer.Character and localPlayer.Character:FindFirstChild("BallOwnership") then
-			ClientNetwork.BallEvents:DropRequest()
-		end
 	end)
-
-	--// ----------------------------------------------------------------
-	--// SUB-SETOR: Conexào de Destruição
-	--// ----------------------------------------------------------------
 
 	tool.Destroying:Connect(function()
 		throwMaid:DoCleaning()
@@ -292,12 +293,8 @@ function ThrowTool:Initialize(tool: Tool)
 		powerMaid:DoCleaning()
 	end)
 
-	--// ----------------------------------------------------------------
-	--// SUB-SETOR: Loop de Atualização de Poder
-	--// ----------------------------------------------------------------
-
+	-- Loop de atualização de força
 	powerMaid:GiveTask(RunService.Heartbeat:Connect(function(deltaTime)
-		-- Atualiza poder se carregando
 		if charging then
 			if power < 100 then
 				power += GAIN_RATE * deltaTime
@@ -309,30 +306,17 @@ function ThrowTool:Initialize(tool: Tool)
 			end
 		end
 
-		-- Atualiza UI de poder
+		-- Atualiza UI
 		local mouseDirection = VectorLib:Vector3ToVectorLib(localPlayer:GetMouse().UnitRay.Direction)
 		local mousePosition = VectorLib:Vector3ToVectorLib(localPlayer:GetMouse().Hit.LookVector)
 
 		local character = localPlayer.Character
 		if character and character:FindFirstChild("HumanoidRootPart") then
 			local hrp = character.HumanoidRootPart
-			local fixedPower = FixedThrowPower(
-				mouseDirection, 
-				mousePosition, 
-				VectorLib:Vector3ToVectorLib(hrp.CFrame.LookVector), 
-				power, 
-				hrp.Position, 
-				localPlayer
-			)
-
+			local fixedPower = FixedThrowPower(mouseDirection, mousePosition, VectorLib:Vector3ToVectorLib(hrp.CFrame.LookVector), power, hrp.Position, localPlayer)
 			PowerUI:UpdatePower(power, fixedPower)
 		end
 	end))
 end
 
---// ============================================================================
---// SETOR: Retorno do Módulo
---// ============================================================================
-
 return ThrowTool
-

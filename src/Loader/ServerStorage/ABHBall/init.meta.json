@@ -1,0 +1,12 @@
+{
+  "className": "MeshPart",
+  "properties": {
+    "CFrame": [9999, 9999, 9999, 1, 0, 0, 0, 1, 0, 0, 0, 1],
+    "CollisionGroup": "ABHBall",
+    "InitialSize": [0.2204, 0.2203, 0.2204],
+    "MeshContent": "rbxassetid://4761023398",
+    "RenderFidelity": "Precise",
+    "Size": [1.75, 1.75, 1.75],
+    "TextureContent": "http://www.roblox.com/asset/?id=4582850426"
+  }
+}

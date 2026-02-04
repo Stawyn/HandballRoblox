@@ -1,0 +1,19 @@
+{
+  "className": "TextLabel",
+  "properties": {
+    "BackgroundTransparency": 1,
+    "BorderSizePixel": 0,
+    "FontFace": {
+      "family": "rbxasset://fonts/families/Arial.json",
+      "weight": "Bold",
+      "style": "Normal",
+      "cachedFaceId": null
+    },
+    "Size": [[1.0, 0.0], [1.0, 0.0]],
+    "Text": "Axes",
+    "TextColor3": [1, 1, 1],
+    "TextSize": 10,
+    "TextStrokeTransparency": 0,
+    "TextWrapped": true
+  }
+}

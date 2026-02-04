@@ -80,7 +80,7 @@ iconSet.keyboard = {
 	-- Add more keyboard keys as needed.
 }
 
--- Keyboard / Mouse active â€“ used when responsive mode is enabled
+-- Keyboard / Mouse active – used when responsive mode is enabled
 iconSet.keyboard_active = {
 	[Enum.KeyCode.A] = "rbxassetid://104398689526274",
 	[Enum.KeyCode.B] = "rbxassetid://71797374210606",
@@ -170,7 +170,7 @@ iconSet.xbox = {
 	-- Add more Xbox buttons as needed.
 }
 
--- Xbox active icons â€“ used when responsive mode is enabled
+-- Xbox active icons – used when responsive mode is enabled
 iconSet.xbox_active = {
 	[Enum.KeyCode.ButtonA] = "rbxassetid://115262317754008",
 	[Enum.KeyCode.ButtonB] = "rbxassetid://88636001228295",
@@ -210,7 +210,7 @@ iconSet.ps = {
 	[Enum.KeyCode.DPadRight] = "rbxassetid://102465619152428",
 }
 
--- PlayStation active icons â€“ used when responsive mode is enabled
+-- PlayStation active icons – used when responsive mode is enabled
 iconSet.ps_active = {
 	[Enum.KeyCode.ButtonA] = "rbxassetid://84850278378257",
 	[Enum.KeyCode.ButtonB] = "rbxassetid://138127209390731",
@@ -235,7 +235,7 @@ iconSet.mobile = {
 	[Enum.KeyCode.Touch] = "rbxassetid://108731585520488",
 }
 
--- Mobile touch active icon â€“ used when responsive mode is enabled
+-- Mobile touch active icon – used when responsive mode is enabled
 iconSet.mobile_active = {
 	[Enum.KeyCode.Touch] = "rbxassetid://122395190462889",
 }

@@ -1,160 +1,141 @@
 --[[
-	================================================================================
-	MÓDULO: Utils
-	================================================================================
-	
-	Descrição:
-		Funções utilitárias compartilhadas entre cliente e servidor.
-		Contém helpers para manipulação de tabelas, validação de personagens
-		e cálculos de proximidade de jogadores.
-	
-	Autor: Sistema ABH
-	================================================================================
+    ================================================================================
+    MÓDULO: Utils
+    ================================================================================
+    Descrição: Utilitários gerais compartilhados para o jogo ABH Handball.
+    
+    Funcionalidades:
+        - MergeTables: Combina duas tabelas em uma nova
+        - CountOpponentsInRadius: Conta oponentes em um raio (DEPRECATED: use TeamUtils)
+        - IsPointInHomeArea: Verifica se ponto está na área Home
+        - IsPointInAwayArea: Verifica se ponto está na área Away
+    
+    Autor: Sistema ABH
+    ================================================================================
 ]]
 
+--// ============================================================================
+--// SETOR: SERVIÇOS E DEPENDÊNCIAS
+--// ============================================================================
+
 local Utils = {}
-
---// ============================================================================
---// SETOR: Serviços
---// ============================================================================
-
 local Teams = game:GetService("Teams")
 
 --// ============================================================================
---// SETOR: Manipulação de Tabelas
+--// SETOR: FUNÇÕES DE TABELAS
 --// ============================================================================
 
---[[
-	Combina duas tabelas em uma nova tabela.
-	não modifica as tabelas originais.
+--- Mescla duas tabelas em uma nova tabela
+-- @param t1 {T} - Primeira tabela
+-- @param t2 {T} - Segunda tabela
+-- @return {T} - Nova tabela com elementos de ambas
+function Utils:MergeTables<T>(t1: { T }, t2: { T }): {T}
+	local newTable = table.create(#t1 + #t2, nil)
+	local currIndex = 1
 	
-	@param tabela1 {T} - Primeira tabela a ser combinada
-	@param tabela2 {T} - Segunda tabela a ser combinada
-	@return {T} - Nova tabela com todos os elementos de ambas
+	for i = 1, #t1 do
+		newTable[currIndex] = t1[i]
+		currIndex += 1
+	end
 	
-	Exemplo:
-		local combinada = Utils:MergeTables({1, 2}, {3, 4}) -- {1, 2, 3, 4}
-]]
-function Utils:MergeTables<T>(tabela1: { T }, tabela2: { T }): {T}
-	local novaTabela = table.create(#tabela1 + #tabela2, nil)
-	local indiceAtual = 1
-
-	for i = 1, #tabela1 do
-		novaTabela[indiceAtual] = tabela1[i]
-		indiceAtual += 1
+	for i = 1, #t2 do
+		newTable[currIndex] = t2[i]
+		currIndex += 1
 	end
-
-	for i = 1, #tabela2 do
-		novaTabela[indiceAtual] = tabela2[i]
-		indiceAtual += 1
-	end
-
-	return novaTabela
+	
+	return newTable
 end
 
 --// ============================================================================
---// SETOR: Validação de Personagem
+--// SETOR: FUNÇÕES DE CONTAGEM (DEPRECATED - Use TeamUtils)
 --// ============================================================================
 
---[[
-	Valida se um jogador possui um personagem válido com HumanoidRootPart.
-	
-	@param jogador Player - O jogador a ser validado
-	@return (Model?, BasePart?) - Personagem e HumanoidRootPart, ou nil se inválido
-	
-	Exemplo:
-		local personagem, hrp = Utils:ValidarPersonagem(jogador)
-		if not personagem then return end
-]]
-function Utils:ValidarPersonagem(jogador: Player): (Model?, BasePart?)
-	local personagem = jogador.Character
-	if not personagem then
-		return nil, nil
-	end
+--- [DEPRECATED] Conta oponentes em um raio em torno de uma posição
+-- NOTA: Use TeamUtils.countOpponentsInRadius em vez desta função
+-- @param blacklistPlayer Player - Jogador a ignorar
+-- @param center Vector3 - Centro da busca
+-- @return number - Quantidade de oponentes no raio (-1 se erro)
+function Utils:CountOpponentsInRadius(blacklistPlayer: Player, center: Vector3)
+	local r = 14
+	local radiusSquared = 10*10
+	local count = 0
 
-	local humanoidRootPart = personagem:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not humanoidRootPart then
-		return personagem, nil
-	end
-
-	return personagem, humanoidRootPart
-end
-
---[[
-	Valida se um personagem possui um Humanoid válido e vivo.
-	
-	@param personagem Model - O modelo do personagem
-	@return Humanoid? - O Humanoid se válido e vivo, nil caso contrário
-]]
-function Utils:ValidarHumanoid(personagem: Model): Humanoid?
-	local humanoid = personagem:FindFirstChild("Humanoid") :: Humanoid?
-	if not humanoid or humanoid.Health <= 0 then
-		return nil
-	end
-	return humanoid
-end
-
---// ============================================================================
---// SETOR: Cálculos de Proximidade
---// ============================================================================
-
---- Constantes para cálculo de proximidade
-local RAIO_DETECCAO = 10
-local RAIO_DETECCAO_QUADRADO = RAIO_DETECCAO * RAIO_DETECCAO
-
---[[
-	Conta quantos oponentes estào dentro de um raio específico.
-	Usado para calcular modificadores de poder de arremesso.
-	
-	@param jogadorExcluido Player - Jogador que não deve ser contado
-	@param centro Vector3 - Posição central para verificar
-	@return number - Quantidade de oponentes no raio (-1 se time inválido)
-	
-	Nota: O raio de detecção é de 10 studs.
-]]
-function Utils:ContarOponentesNoRaio(jogadorExcluido: Player, centro: Vector3): number
-	local contagem = 0
-
-	-- Determina o time do jogador e obtém os oponentes
-	local nomeTime = jogadorExcluido.Team.Name :: string
-	local oponentes = {}
-
-	if nomeTime:find("Home") then
-		oponentes = Utils:MergeTables(
-			Teams["Away Team"]:GetPlayers(), 
-			Teams["-Away Goalkeeper"]:GetPlayers()
-		)
-	elseif nomeTime:find("Away") then
-		oponentes = Utils:MergeTables(
-			Teams["Home Team"]:GetPlayers(), 
-			Teams["-Home Goalkeeper"]:GetPlayers()
-		)
+	local presumedTeam = blacklistPlayer.Team.Name :: string
+	local opponents = {}
+	if presumedTeam:find("Home") then
+		opponents = Utils:MergeTables(Teams["Away Team"]:GetPlayers(), Teams["-Away Goalkeeper"]:GetPlayers())
+	elseif presumedTeam:find("Away") then
+		opponents = Utils:MergeTables(Teams["Home Team"]:GetPlayers(), Teams["-Home Goalkeeper"]:GetPlayers())
 	else
-		return -1 -- Time inválido (ex: Lobby, Officials)
+		return -1
 	end
 
-	-- Verifica cada oponente
-	for _, jogador in oponentes do
-		if jogador == jogadorExcluido then
+	for _, player in opponents do
+		if player == blacklistPlayer then
 			continue
 		end
+		local character = player.Character
+		if character then
+			local humanoidRootPart = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if humanoidRootPart then
+				local offset = humanoidRootPart.Position - center
+				local distanceSquared = offset:Dot(offset)
 
-		local _, humanoidRootPart = Utils:ValidarPersonagem(jogador)
-		if humanoidRootPart then
-			local deslocamento = humanoidRootPart.Position - centro
-			local distanciaQuadrada = deslocamento:Dot(deslocamento)
-
-			if distanciaQuadrada <= RAIO_DETECCAO_QUADRADO then
-				contagem += 1
+				if distanceSquared <= radiusSquared then
+					count += 1
+				end
 			end
 		end
 	end
 
-	return contagem
+	return count
 end
 
--- Alias para compatibilidade com código existente
-Utils.CountOpponentsInRadius = Utils.ContarOponentesNoRaio
+--// ============================================================================
+--// SETOR: FUNÇÕES DE ÁREA DO CAMPO
+--// ============================================================================
+
+--- Verifica se um ponto está dentro da área do gol Home
+-- @param point Vector3 - Posição a verificar
+-- @return boolean - true se estiver na área Home
+function Utils:IsPointInHomeArea(point: Vector3): boolean
+	local centerX = -139.469
+	local radius = 100
+	local minX = -149.469
+
+	local a, c = point.X, point.Z
+
+	if a < minX then
+		return false
+	end
+
+	local distX = a - centerX
+	local distZ = c
+	local distance = math.sqrt(distX * distX + distZ * distZ)
+
+	return distance <= radius
+end
+
+--- Verifica se um ponto está dentro da área do gol Away
+-- @param point Vector3 - Posição a verificar
+-- @return boolean - true se estiver na área Away
+function Utils:IsPointInAwayArea(point: Vector3): boolean
+	local centerX = 139.469
+	local radius = 100
+	local maxX = 149.469
+
+	local a, c = point.X, point.Z
+
+	if a > maxX then
+		return false
+	end
+
+	local distX = a - centerX
+	local distZ = c
+	local distance = math.sqrt(distX * distX + distZ * distZ)
+
+	return distance <= radius
+end
+
 
 return Utils
-

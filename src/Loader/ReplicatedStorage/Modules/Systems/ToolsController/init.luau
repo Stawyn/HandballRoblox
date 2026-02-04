@@ -1,3 +1,25 @@
+--[[
+    ================================================================================
+    MÓDULO: ToolsController
+    ================================================================================
+    Descrição: Controlador central de ferramentas do cliente.
+               Inicializa automaticamente cada ferramenta quando adicionada.
+    
+    Ferramentas Suportadas:
+        - SpawnTool: Spawn de bola
+        - ThrowTool: Arremesso e tackle
+        - KeeperTool: Modo goleiro
+        - RefSpawnTool: Spawn de árbitro
+        - PenaltySpawnTool: Spawn de pênalti
+    
+    Autor: Sistema ABH
+    ================================================================================
+]]
+
+--// ============================================================================
+--// SETOR: SERVIÇOS E DEPENDÊNCIAS
+--// ============================================================================
+
 local Players = game:GetService("Players")
 
 local SpawnTool = require("@self/SpawnTool")
@@ -6,64 +28,74 @@ local KeeperTool = require("@self/KeeperTool")
 local RefSpawnTool = require("@self/RefSpawnTool")
 local PenaltySpawnTool = require("@self/PenaltySpawnTool")
 
+--// ============================================================================
+--// SETOR: REFERÊNCIAS E ESTADO
+--// ============================================================================
+
 local localPlayer = Players.LocalPlayer :: Player
-local initializedTools = {} :: { [Tool]: boolean }
+local initializedTools: { [Tool]: boolean } = {}
 
-function initTool(tool: Tool) 
-	if initializedTools[tool] then
-		return
-	end
+--// ============================================================================
+--// SETOR: MAPEAMENTO DE FERRAMENTAS
+--// ============================================================================
 
-	if tool.Name == "SpawnTool" then
-		SpawnTool:Initialize(tool)
-	elseif tool.Name == "ThrowTool" then
-		ThrowTool:Initialize(tool)
-	elseif tool.Name == "KeeperTool" then
-		KeeperTool:Initialize(tool)
-	elseif tool.Name == "RefSpawnTool" then
-		RefSpawnTool:Initialize(tool)
-	elseif tool.Name == "PenaltySpawnTool" then
-		PenaltySpawnTool:Initialize(tool)
+local TOOL_MAP = {
+	SpawnTool = SpawnTool,
+	ThrowTool = ThrowTool,
+	KeeperTool = KeeperTool,
+	RefSpawnTool = RefSpawnTool,
+	PenaltySpawnTool = PenaltySpawnTool,
+}
+
+--// ============================================================================
+--// SETOR: FUNÇÕES
+--// ============================================================================
+
+--- Inicializa uma ferramenta
+local function initTool(tool: Tool) 
+	if initializedTools[tool] then return end
+
+	local controller = TOOL_MAP[tool.Name]
+	if controller then
+		controller:Initialize(tool)
+		initializedTools[tool] = true
 	end
-	
-	initializedTools[tool] = true
 end
 
-function onCharacterAdded(character: Model)
+--- Callback quando personagem é adicionado
+local function onCharacterAdded(character: Model)
 	local backpack = localPlayer:WaitForChild("Backpack") :: Backpack
 	
+	-- Inicializa ferramentas existentes
 	for _, tool in backpack:GetChildren() do
-		if not tool:IsA("Tool") then
-			continue
+		if tool:IsA("Tool") then
+			coroutine.wrap(initTool)(tool)
 		end
-		
-		coroutine.wrap(initTool)(tool)
 	end
 	
 	for _, tool in character:GetChildren() do
-		if not tool:IsA("Tool") then
-			continue
+		if tool:IsA("Tool") then
+			coroutine.wrap(initTool)(tool)
 		end
-
-		coroutine.wrap(initTool)(tool)
 	end
 	
+	-- Conecta para novas ferramentas
 	backpack.ChildAdded:Connect(function(tool)
-		if not tool:IsA("Tool") then
-			return
+		if tool:IsA("Tool") then
+			coroutine.wrap(initTool)(tool)
 		end
-		
-		coroutine.wrap(initTool)(tool)
 	end)
 	
 	character.ChildAdded:Connect(function(tool)
-		if not tool:IsA("Tool") then
-			return
+		if tool:IsA("Tool") then
+			coroutine.wrap(initTool)(tool)
 		end
-		
-		coroutine.wrap(initTool)(tool)
 	end)
 end
+
+--// ============================================================================
+--// SETOR: INICIALIZAÇÃO
+--// ============================================================================
 
 local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
 onCharacterAdded(character)

@@ -1,0 +1,8 @@
+{
+  "className": "Frame",
+  "properties": {
+    "BackgroundColor3": [1, 0, 0.0157],
+    "BorderSizePixel": 0,
+    "Size": [[0.0, 3.0], [1.0, 0.0]]
+  }
+}

@@ -1,79 +1,79 @@
 --[[
-	================================================================================
-	MÓDULO: Timer (Cronômetro de Partida)
-	================================================================================
-	
-	Descrição:
-		Gerencia o cronômetro oficial da partida:
-		- Contagem progressiva de tempo
-		- Acréscimos de tempo
-		- Eventos de fim de tempo
-		- Sincronização com interface
-	
-	Configuração:
-		TIMER_DURATION: Tempo em segundos por tempo de jogo (padrào 10 minutos)
-	
-	Autor: Sistema ABH
-	Refatorado: Documentação em PT-BR
-	================================================================================
+    ================================================================================
+    MÓDULO: Timer
+    ================================================================================
+    Descrição: Sistema de cronometragem da partida ABH.
+               Controla o tempo de jogo, acréscimos e eventos de fim de tempo.
+    
+    Funcionalidades:
+        - Toggle: Iniciar/pausar timer
+        - Reset: Zerar timer
+        - SetTime: Definir tempo específico
+        - AddTime: Adicionar acréscimos
+    
+    Eventos Enviados:
+        - END_HALF: Quando timer atinge fim do tempo
+        - CANCEL_LAST_ATTACK: Quando acréscimo é adicionado
+    
+    Configuração:
+        - TIMER_DURATION: 10 minutos (600 segundos) por tempo
+    
+    Autor: Sistema ABH
+    ================================================================================
 ]]
 
 --// ============================================================================
---// SETOR: Dependências
+--// SETOR: DEPENDÊNCIAS
 --// ============================================================================
 
 local ServerEvents = require("./ServerEvents")
 
 --// ============================================================================
---// SETOR: Referências de Dados
+--// SETOR: REFERÊNCIAS E CONSTANTES
 --// ============================================================================
 
 local DATA_FOLDER = workspace:WaitForChild("Core"):WaitForChild("Data")
 local TIMER = DATA_FOLDER:WaitForChild("Timer") :: NumberValue
 
---// ============================================================================
---// SETOR: Configuração
---// ============================================================================
-
--- TEMPO DA PARTIDA (Mude aqui para testar rápido, ex: 15 para 15 segundos)
-local TIMER_DURATION = 10 * 60  -- 10 minutos por tempo
+-- Duração do tempo de jogo (10 minutos = 600 segundos)
+-- Altere para valor menor para testes rápidos (ex: 15 segundos)
+local TIMER_DURATION = 10 * 60 
 
 --// ============================================================================
---// SETOR: Estado Global
+--// SETOR: ESTADO
 --// ============================================================================
 
-local timerRunning = false  -- Se o timer está ativo
-local currentTime = 0       -- Tempo atual em segundos
-local addedTime = 0         -- Acréscimos em segundos
+local timerRunning = false
+local currentTime = 0
+local addedTime = 0
+local thread = nil
 
 --// ============================================================================
---// SETOR: Definição do Módulo
+--// SETOR: MÓDULO
 --// ============================================================================
 
 local Timer = {}
-local thread = nil  -- Thread do loop de contagem
 
 --// ============================================================================
---// SETOR: Funções Públicas
+--// SETOR: FUNÇÕES PÚBLICAS
 --// ============================================================================
 
---- Liga ou desliga o cronômetro
--- @param state boolean - True para ligar, false para desligar
+--- Inicia ou pausa o timer
+-- @param state boolean - true para iniciar, false para pausar
 function Timer:Toggle(state: boolean)
 	if state == timerRunning then
 		return
 	end
 
 	timerRunning = state 
-
-	-- Cancela thread anterior se existir
+	
+	-- Cancela thread anterior
 	if thread then
 		task.cancel(thread)
 		thread = nil
 	end
 
 	if timerRunning then
-		-- Inicia loop de contagem
 		thread = task.spawn(function()
 			while timerRunning and currentTime < (TIMER_DURATION + addedTime) do
 				task.wait(1)
@@ -81,7 +81,7 @@ function Timer:Toggle(state: boolean)
 				TIMER.Value = currentTime
 			end
 
-			-- Tempo esgotado: notifica fim do tempo
+			-- Fim do tempo
 			if currentTime >= (TIMER_DURATION + addedTime) then
 				ServerEvents.League:Fire("END_HALF")
 			end
@@ -89,14 +89,14 @@ function Timer:Toggle(state: boolean)
 	end
 end
 
---- Define o tempo atual manualmente
+--- Define o tempo atual
 -- @param time number - Tempo em segundos
 function Timer:SetTime(time: number)
 	currentTime = time
 	TIMER.Value = currentTime
 end
 
---- Reseta o cronômetro para zero
+--- Reseta o timer para zero
 function Timer:Reset()
 	timerRunning = false
 	currentTime = 0
@@ -113,45 +113,35 @@ end
 --- Adiciona tempo de acréscimo
 -- @param amount number - Minutos a adicionar
 function Timer:AddTime(amount: number)
-	-- Garante que amount é >= 0
 	addedTime += math.max(math.floor(amount), 0) * 60
-
-	-- Se estava em último ataque e ainda tem tempo, cancela
+	
+	-- Cancela último ataque se timer ainda não acabou
 	if DATA_FOLDER.LastAttack.Value == true and currentTime < (TIMER_DURATION + addedTime) then
 		DATA_FOLDER.LastAttack.Value = false
 	end
-
+	
 	DATA_FOLDER.AddedTime.Value = addedTime
 	Timer:Toggle(true)
 	ServerEvents.League:Fire("CANCEL_LAST_ATTACK")
 end
 
 --// ============================================================================
---// SETOR: Handlers de Eventos
+--// SETOR: LISTENERS DE EVENTOS
 --// ============================================================================
 
 ServerEvents.League:Connect(function(action, ...)
 	if action == "START" then
 		Timer:Reset()
 		Timer:Toggle(true)
-
 	elseif action == "RESET" then
 		Timer:Reset()
-
 	elseif action == "RESET_TIME" then
-		-- Reset only the timer value (keep scores, halves, etc)
 		Timer:Reset()
-
 	elseif action == "SET_TIME" then
 		Timer:SetTime(...)
-
 	elseif action == "PAUSE" then
 		Timer:Toggle(false)
 	end
 end)
-
---// ============================================================================
---// SETOR: Retorno do Módulo
---// ============================================================================
 
 return Timer

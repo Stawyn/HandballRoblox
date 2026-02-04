@@ -3,18 +3,12 @@ local SSS = game:GetService("ServerScriptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local WorkSpace = game:GetService("Workspace")
 
--- Espera o Loader terminar de mover todos os arquivos
-ReplicatedStorage:WaitForChild("LoaderReady")
-
-local cardSystem = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Systems"):WaitForChild("CardSystem"))
-local ABHLeague = nil
-local modulesFolder = SSS:WaitForChild("Modules", 10)
-if modulesFolder then
-	local implementationFolder = modulesFolder:WaitForChild("Implementation", 5)
-	if implementationFolder then
-		local abhLeagueModule = implementationFolder:FindFirstChild("ABHLeague")
-		if abhLeagueModule then
-			ABHLeague = require(abhLeagueModule)
+local cardSystem = require(ReplicatedStorage.Modules.Systems.CardSystem)
+local ABHLeague
+if SSS:FindFirstChild("Modules") then
+	if SSS.Modules:FindFirstChild("Implementation") then
+		if SSS.Modules.Implementation:FindFirstChild("ABHLeague") then
+			ABHLeague = require(SSS.Modules.Implementation.ABHLeague)
 		end
 	end
 end

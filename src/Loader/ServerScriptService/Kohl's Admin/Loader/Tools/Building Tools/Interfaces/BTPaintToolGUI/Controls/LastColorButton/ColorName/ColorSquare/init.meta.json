@@ -1,0 +1,9 @@
+{
+  "className": "Frame",
+  "properties": {
+    "BorderSizePixel": 0,
+    "Position": [[0.5, -43.0], [0.2, 1.0]],
+    "Size": [[0.6, 0.0], [0.6, 0.0]],
+    "SizeConstraint": "RelativeYY"
+  }
+}

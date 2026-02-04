@@ -1,0 +1,15 @@
+{
+  "className": "MeshPart",
+  "properties": {
+    "Anchored": true,
+    "CanCollide": false,
+    "CanQuery": false,
+    "CollisionGroup": "ABHBall",
+    "CollisionGroupId": -1,
+    "InitialSize": [0.2204, 0.2203, 0.2204],
+    "MeshContent": "rbxassetid://4761023398",
+    "RenderFidelity": "Precise",
+    "Size": [1.5, 1.5, 1.5],
+    "TextureContent": "http://www.roblox.com/asset/?id=4582850426"
+  }
+}

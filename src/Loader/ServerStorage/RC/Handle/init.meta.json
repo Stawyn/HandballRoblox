@@ -1,0 +1,12 @@
+{
+  "className": "Part",
+  "properties": {
+    "BottomSurface": "Smooth",
+    "CFrame": [-146.5001, 14.9908, 163.5, -1, -0.0, 0, -0.0, 1, 0, 0, 0, -1],
+    "Color": [255, 0, 0],
+    "RotVelocity": [0, 0, -0.0014],
+    "Size": [1, 2, 1],
+    "TopSurface": "Smooth",
+    "Velocity": [-0.0006, -0.0142, 0]
+  }
+}

@@ -73,4 +73,3 @@ function module.getPlatform(): (string, string?)
 end
 
 return module
-

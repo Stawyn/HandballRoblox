@@ -1,0 +1,19 @@
+{
+  "className": "TextButton",
+  "properties": {
+    "AnchorPoint": [0.5, 0.5],
+    "BackgroundColor3": [0.3137, 0.3137, 0.3137],
+    "FontFace": {
+      "family": "rbxasset://fonts/families/BuilderSans.json",
+      "weight": "Bold",
+      "style": "Normal",
+      "cachedFaceId": null
+    },
+    "Position": [[0.19, 0.0], [0.85, 0.0]],
+    "Size": [[0.28, 0.0], [0.0, 35.0]],
+    "Text": "CANCELAR",
+    "TextColor3": [1, 1, 1],
+    "TextSize": 16,
+    "ZIndex": 201
+  }
+}

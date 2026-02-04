@@ -159,4 +159,3 @@ export type PromiseStatic = {
 }
 
 return Promise :: PromiseStatic?
-

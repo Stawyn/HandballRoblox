@@ -1,0 +1,9 @@
+{
+  "className": "UIGridLayout",
+  "properties": {
+    "CellPadding": [[0.0, 0.0], [0.0, 16.0]],
+    "CellSize": [[1.0, 0.0], [0.0, 16.0]],
+    "SortOrder": "LayoutOrder",
+    "VerticalAlignment": "Center"
+  }
+}

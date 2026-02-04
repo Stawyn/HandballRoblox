@@ -1,0 +1,16 @@
+{
+  "className": "ViewportFrame",
+  "properties": {
+    "Ambient": [0.5216, 0.549, 0.5882],
+    "AnchorPoint": [0.5, 0.5],
+    "BackgroundColor3": [1, 1, 1],
+    "BackgroundTransparency": 0.9,
+    "BorderColor3": [0, 0, 0],
+    "BorderSizePixel": 5,
+    "LightColor": [0.9569, 0.9647, 1],
+    "LightDirection": [-1, -1, 1],
+    "Position": [[0.4956, 0.0], [0.4957, 0.0]],
+    "Size": [[1.0088, 0.0], [1.0087, 0.0]],
+    "ZIndex": 10000
+  }
+}

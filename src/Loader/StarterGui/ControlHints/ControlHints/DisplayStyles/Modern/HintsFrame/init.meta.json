@@ -1,0 +1,13 @@
+{
+  "className": "Frame",
+  "properties": {
+    "AnchorPoint": [1, 1],
+    "AutomaticSize": "XY",
+    "BackgroundColor3": [0, 0, 0],
+    "BackgroundTransparency": 1,
+    "BorderColor3": [0, 0, 0],
+    "BorderSizePixel": 0,
+    "ClipsDescendants": true,
+    "Position": [[1.0, -16.0], [1.0, -16.0]]
+  }
+}

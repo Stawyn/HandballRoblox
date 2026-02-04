@@ -1,11 +1,9 @@
 {
-  "name": "Loader",
+  "name": "l",
   "tree": {
     "$className": "DataModel",
     "ServerScriptService": {
-      "Loader": {
-        "$path": "src/Loader"
-      }
+      "$path": "src"
     }
   }
 }

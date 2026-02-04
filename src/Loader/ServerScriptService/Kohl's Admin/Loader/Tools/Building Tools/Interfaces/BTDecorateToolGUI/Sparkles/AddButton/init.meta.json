@@ -1,0 +1,21 @@
+{
+  "className": "TextButton",
+  "properties": {
+    "BackgroundColor3": [0, 0, 0],
+    "BackgroundTransparency": 0.75,
+    "BorderColor3": [0, 0, 0],
+    "BorderSizePixel": 0,
+    "FontFace": {
+      "family": "rbxasset://fonts/families/Arial.json",
+      "weight": "Bold",
+      "style": "Normal",
+      "cachedFaceId": null
+    },
+    "Position": [[1.0, -40.0], [0.0, 3.0]],
+    "Size": [[0.0, 35.0], [0.0, 19.0]],
+    "Text": "ADD",
+    "TextColor3": [1, 1, 1],
+    "TextSize": 10,
+    "ZIndex": 2
+  }
+}

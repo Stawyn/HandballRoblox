@@ -1,0 +1,9 @@
+{
+  "className": "UIStroke",
+  "properties": {
+    "ApplyStrokeMode": "Border",
+    "BorderStrokePosition": "Inner",
+    "Color": [0.6745, 0.6784, 0.6784],
+    "Thickness": 2
+  }
+}

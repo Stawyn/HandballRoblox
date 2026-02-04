@@ -1,0 +1,18 @@
+{
+  "className": "TextBox",
+  "properties": {
+    "BackgroundColor3": [0.8863, 0.9098, 0.9412],
+    "FontFace": {
+      "family": "rbxasset://fonts/families/RobotoMono.json",
+      "weight": "Bold",
+      "style": "Normal",
+      "cachedFaceId": null
+    },
+    "PlaceholderColor3": [0.3922, 0.4549, 0.5451],
+    "PlaceholderText": "AWAY NAME",
+    "Position": [[0.0, 0.0], [0.241, 0.0]],
+    "Size": [[1.0, 0.0], [0.0, 40.0]],
+    "TextColor3": [0.8863, 0.9098, 0.9412],
+    "TextSize": 16
+  }
+}

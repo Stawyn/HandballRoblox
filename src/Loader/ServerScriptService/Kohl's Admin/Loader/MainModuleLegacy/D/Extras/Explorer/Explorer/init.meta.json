@@ -1,3 +1,12 @@
 {
-  "className": "Frame"
+  "className": "Frame",
+  "properties": {
+    "AutoLocalize": false,
+    "BackgroundColor3": [1, 1, 1],
+    "BackgroundTransparency": 0.1,
+    "BorderColor3": [0.749, 0.749, 0.749],
+    "Draggable": true,
+    "Position": [[1.0, -308.0], [0.0, 160.0]],
+    "Size": [[0.0, 300.0], [1.0, -168.0]]
+  }
 }

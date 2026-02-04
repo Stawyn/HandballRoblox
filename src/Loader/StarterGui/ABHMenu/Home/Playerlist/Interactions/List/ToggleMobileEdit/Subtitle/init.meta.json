@@ -1,0 +1,26 @@
+{
+  "className": "TextLabel",
+  "properties": {
+    "AnchorPoint": [0, 0.5],
+    "BackgroundColor3": [1, 1, 1],
+    "BackgroundTransparency": 1,
+    "BorderColor3": [0.1098, 0.1686, 0.2118],
+    "BorderSizePixel": 0,
+    "FontFace": {
+      "family": "rbxasset://fonts/families/BuilderSans.json",
+      "weight": "Regular",
+      "style": "Normal",
+      "cachedFaceId": null
+    },
+    "Position": [[0.0, 15.0], [0.0, 36.0]],
+    "Size": [[0.8, 0.0], [0.0, 14.0]],
+    "Text": "Mova ou mude o tamanho dos botões mobile",
+    "TextColor3": [0.7843, 0.7843, 0.7843],
+    "TextScaled": true,
+    "TextSize": 12,
+    "TextTransparency": 0.4,
+    "TextWrapped": true,
+    "TextXAlignment": "Left",
+    "ZIndex": 151
+  }
+}

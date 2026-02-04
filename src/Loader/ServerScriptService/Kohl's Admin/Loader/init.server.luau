@@ -8,13 +8,9 @@ local AUTO_UPDATE = false
 local LEGACY = false
 
 local CONFIG = Package:FindFirstChild("Config")
-print(">>> [KOHLS-DEBUG] Loader Iniciado em: " .. script:GetFullName())
 if CONFIG then
 	AUTO_UPDATE = false -- CONFIG:GetAttribute("AutoUpdate")
 	LEGACY = CONFIG:GetAttribute("Legacy")
-	print("[KOHLS-DEBUG] Config encontrado. Legacy: " .. tostring(LEGACY))
-else
-	warn("[KOHLS-DEBUG] Config não encontrado!")
 end
 
 if (LEGACY and not _G.KAU) or not shared._K_LOADER_LOADED then
@@ -35,19 +31,14 @@ if (LEGACY and not _G.KAU) or not shared._K_LOADER_LOADED then
 	AUTO_UPDATE = AUTO_UPDATE and game.PlaceId ~= DEMO_PLACE
 
 	local localMainModule = script:FindFirstChild(MAIN_MODULE_NAME) or MAIN_MODULE_ID
-	print("[KOHLS-DEBUG] Tentando carregar MainModule: " .. tostring(localMainModule))
+
 	if typeof(localMainModule) == "Instance" then
-		print("[KOHLS-DEBUG] MainModule é uma Instância. ClassName: " .. localMainModule.ClassName)
 		script:WaitForChild("Tools").Parent = localMainModule:FindFirstChild("Server") or localMainModule
-	else
-		print("[KOHLS-DEBUG] MainModule é ID (ou não encontrado localmente).")
 	end
 
 	local ok, result = pcall(require, if AUTO_UPDATE then MAIN_MODULE_ID else localMainModule)
-	print("[KOHLS-DEBUG] Require executado. Sucesso: " .. tostring(ok))
 
 	if not ok then
-		warn("[KOHLS-DEBUG] Falha no Require! Razào: " .. tostring(result))
 		if AUTO_UPDATE then
 			local function loadModuleAsset(assetId: number)
 				local asset = game:GetService("InsertService"):LoadAsset(assetId)
@@ -73,5 +64,4 @@ if (LEGACY and not _G.KAU) or not shared._K_LOADER_LOADED then
 		result.initialize(CONFIG)
 	end
 end
-
 

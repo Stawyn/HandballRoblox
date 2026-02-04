@@ -1,0 +1,22 @@
+{
+  "className": "TextLabel",
+  "properties": {
+    "BackgroundColor3": [1, 1, 1],
+    "BackgroundTransparency": 1,
+    "BorderSizePixel": 0,
+    "FontFace": {
+      "family": "rbxasset://fonts/families/Arial.json",
+      "weight": "Bold",
+      "style": "Normal",
+      "cachedFaceId": null
+    },
+    "Position": [[0.0, 35.0], [0.0, 0.0]],
+    "Size": [[0.0, 60.0], [0.0, 25.0]],
+    "Text": "Sparkles",
+    "TextColor3": [1, 1, 1],
+    "TextSize": 10,
+    "TextStrokeTransparency": 0.5,
+    "TextWrapped": true,
+    "TextXAlignment": "Left"
+  }
+}

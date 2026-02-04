@@ -1,0 +1,9 @@
+{
+  "className": "TextButton",
+  "properties": {
+    "BackgroundColor3": [0.1373, 0.1373, 0.1373],
+    "LayoutOrder": 5000,
+    "Text": "",
+    "ZIndex": 103
+  }
+}

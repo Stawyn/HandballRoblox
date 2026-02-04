@@ -23,4 +23,3 @@ function Sort:InsertionSort(t: {number}): {number}
 end
 
 return Sort
-

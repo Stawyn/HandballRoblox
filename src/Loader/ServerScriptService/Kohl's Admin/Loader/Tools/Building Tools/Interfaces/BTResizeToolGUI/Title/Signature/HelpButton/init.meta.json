@@ -1,0 +1,24 @@
+{
+  "className": "TextButton",
+  "properties": {
+    "AnchorPoint": [1, 0.5],
+    "BackgroundColor3": [0.0902, 0.0902, 0.0941],
+    "BackgroundTransparency": 1,
+    "BorderSizePixel": 0,
+    "FontFace": {
+      "family": "rbxasset://fonts/families/GothamSSm.json",
+      "weight": "Bold",
+      "style": "Normal",
+      "cachedFaceId": null
+    },
+    "Position": [[0.0, -5.0], [0.5, -1.0]],
+    "RichText": true,
+    "Selectable": false,
+    "Size": [[0.0, 15.0], [0.0, 15.0]],
+    "Text": "?",
+    "TextColor3": [1, 1, 1],
+    "TextSize": 12,
+    "TextTransparency": 0.5,
+    "TextWrapped": true
+  }
+}

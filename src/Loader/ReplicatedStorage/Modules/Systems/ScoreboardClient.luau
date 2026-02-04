@@ -1,11 +1,40 @@
+--[[
+    ================================================================================
+    MÓDULO: ScoreboardClient
+    ================================================================================
+    Descrição: Placar visual do jogo - mostra score, timer, nomes e estado.
+               Suporta arrastar para reposicionar.
+    
+    Funcionalidades:
+        - Exibição de placar (Home x Away)
+        - Timer formatado (MM:SS)
+        - Nomes dos times
+        - Indicador de tempo extra (ET) / Último ataque (LA)
+        - Estado da partida (1T, 2T, Pausado)
+        - Drag para reposicionar
+    
+    Autor: Sistema ABH
+    ================================================================================
+]]
+
+--// ============================================================================
+--// SETOR: SERVIÇOS E DEPENDÊNCIAS
+--// ============================================================================
+
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+--// ============================================================================
+--// SETOR: REFERÊNCIAS
+--// ============================================================================
 
 local DATA = workspace:WaitForChild("Core"):WaitForChild("Data")
-local NETWORK_FOLDER = game:GetService("ReplicatedStorage"):WaitForChild("Network") :: Folder
+local NETWORK_FOLDER = ReplicatedStorage:WaitForChild("Network") :: Folder
 local STATS_EVENT = NETWORK_FOLDER:WaitForChild("StatsUpdate") :: RemoteEvent
 
--- Optional values we use to determine match status
+-- Values para estado da partida
 local HALF = DATA:FindFirstChild("Half")
 local MATCH_PAUSED = DATA:FindFirstChild("MatchPaused")
 
@@ -13,7 +42,17 @@ local localPlayer = Players.LocalPlayer :: Player
 local playerGui = localPlayer.PlayerGui
 local scoreboardUI = playerGui:WaitForChild("Scoreboard", math.huge):WaitForChild("Scoreboard", math.huge)
 
-local UserInputService = game:GetService("UserInputService")
+--// ============================================================================
+--// SETOR: CONSTANTES
+--// ============================================================================
+
+local ET_VISIBLE_POS = UDim2.new(1, 5, 0, 0)
+local ET_INVIS_POS = UDim2.new(1, -35, 0, 0)
+
+--// ============================================================================
+--// SETOR: SISTEMA DE DRAG
+--// ============================================================================
+
 scoreboardUI.Active = true
 scoreboardUI.Selectable = true
 
@@ -45,10 +84,12 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
--- Find or create a label to show match state (ABH - 1T / 2T / Pausado / Resetado)
+--// ============================================================================
+--// SETOR: LABEL DE ESTADO DA PARTIDA
+--// ============================================================================
+
 local matchLabel = scoreboardUI:FindFirstChild("Match") or scoreboardUI:FindFirstChild("MatchText") or scoreboardUI:FindFirstChild("MatchLabel")
 if not matchLabel then
-	-- Create a simple unobtrusive label near the score if none exists
 	matchLabel = Instance.new("TextLabel")
 	matchLabel.Name = "Match"
 	matchLabel.Size = UDim2.new(0, 150, 0, 20)
@@ -57,11 +98,15 @@ if not matchLabel then
 	matchLabel.Font = Enum.Font.GothamBold
 	matchLabel.TextSize = 14
 	matchLabel.Text = ""
-	-- position above the score text by default
 	matchLabel.Position = UDim2.new(0.5, -75, 0, -25)
 	matchLabel.Parent = scoreboardUI
 end
 
+--// ============================================================================
+--// SETOR: FUNÇÕES DE UPDATE
+--// ============================================================================
+
+--- Atualiza label de estado da partida
 local function updateMatchLabel()
 	local status = ""
 	local halfVal = HALF and HALF.Value or 0
@@ -73,8 +118,6 @@ local function updateMatchLabel()
 		status = "ABH - 1T"
 	elseif halfVal == 2 then
 		status = "ABH - 2T"
-	elseif halfVal == 0 then
-		status = "ABH"
 	else
 		status = "ABH"
 	end
@@ -82,21 +125,8 @@ local function updateMatchLabel()
 	matchLabel.Text = status
 end
 
-if HALF then HALF:GetPropertyChangedSignal("Value"):Connect(updateMatchLabel) end
-if MATCH_PAUSED then MATCH_PAUSED:GetPropertyChangedSignal("Value"):Connect(updateMatchLabel) end
-STATS_EVENT.OnClientEvent:Connect(function(action, ...)
-	if action == "Reset" then
-		matchLabel.Text = "ABH - Resetado"
-	end
-end)
-
--- Initialize on load
-updateMatchLabel()
-
-local ET_VISIBLE_POS = UDim2.new(1, 5, 0, 0)
-local ET_INVIS_POS = UDim2.new(1, -35, 0, 0)
-
-function onNamesUpdate()
+--- Atualiza nomes dos times
+local function onNamesUpdate()
 	local homeName = DATA.HomeName.Value
 	local awayName = DATA.AwayName.Value
 
@@ -104,36 +134,27 @@ function onNamesUpdate()
 	scoreboardUI.AwayName.Text = awayName
 end
 
-onNamesUpdate()
-DATA.HomeName:GetPropertyChangedSignal("Value"):Connect(onNamesUpdate)
-DATA.AwayName:GetPropertyChangedSignal("Value"):Connect(onNamesUpdate)
-
-function onScoreUpdated()
+--- Atualiza placar
+local function onScoreUpdated()
 	local homeScore = DATA.HomeScore.Value
 	local awayScore = DATA.AwayScore.Value
 
 	scoreboardUI.Score.Text = string.format("%d - %d", homeScore, awayScore)
 end
 
-onScoreUpdated()
-DATA.HomeScore:GetPropertyChangedSignal("Value"):Connect(onScoreUpdated)
-DATA.AwayScore:GetPropertyChangedSignal("Value"):Connect(onScoreUpdated)
-
-function onTimerChanged()
+--- Atualiza timer
+local function onTimerChanged()
 	local currentSeconds = DATA.Timer.Value
-
 	local minutes = math.floor(currentSeconds / 60)
 	local seconds = currentSeconds % 60
 
 	scoreboardUI.Timer.Text = string.format("%02d:%02d", minutes, seconds)
 end
 
-onTimerChanged()
-DATA.Timer:GetPropertyChangedSignal("Value"):Connect(onTimerChanged)
-
-function onETChanged()
+--- Atualiza indicador de tempo extra / último ataque
+local function onETChanged()
 	local isLA = DATA.LastAttack.Value
-	local addedTIme = DATA.AddedTime.Value / 60
+	local addedTime = DATA.AddedTime.Value / 60
 
 	if isLA then
 		scoreboardUI.ET.Text = "LA"
@@ -142,8 +163,8 @@ function onETChanged()
 			BackgroundTransparency = 0,
 			TextTransparency = 0
 		}):Play()
-	elseif not isLA and addedTIme > 0 then
-		scoreboardUI.ET.Text = "+"..tostring(addedTIme)
+	elseif not isLA and addedTime > 0 then
+		scoreboardUI.ET.Text = "+"..tostring(addedTime)
 		TweenService:Create(scoreboardUI.ET, TweenInfo.new(.1), {
 			Position = ET_VISIBLE_POS,
 			BackgroundTransparency = 0,
@@ -158,10 +179,44 @@ function onETChanged()
 	end
 end
 
-onETChanged()
+--// ============================================================================
+--// SETOR: CONEXÕES
+--// ============================================================================
+
+-- Estado da partida
+if HALF then HALF:GetPropertyChangedSignal("Value"):Connect(updateMatchLabel) end
+if MATCH_PAUSED then MATCH_PAUSED:GetPropertyChangedSignal("Value"):Connect(updateMatchLabel) end
+
+-- Nomes
+DATA.HomeName:GetPropertyChangedSignal("Value"):Connect(onNamesUpdate)
+DATA.AwayName:GetPropertyChangedSignal("Value"):Connect(onNamesUpdate)
+
+-- Placar
+DATA.HomeScore:GetPropertyChangedSignal("Value"):Connect(onScoreUpdated)
+DATA.AwayScore:GetPropertyChangedSignal("Value"):Connect(onScoreUpdated)
+
+-- Timer
+DATA.Timer:GetPropertyChangedSignal("Value"):Connect(onTimerChanged)
+
+-- Tempo Extra
 DATA.LastAttack:GetPropertyChangedSignal("Value"):Connect(onETChanged)
 DATA.AddedTime:GetPropertyChangedSignal("Value"):Connect(onETChanged)
 
+-- Reset de estatísticas
+STATS_EVENT.OnClientEvent:Connect(function(action, ...)
+	if action == "Reset" then
+		matchLabel.Text = "ABH - Resetado"
+	end
+end)
+
+--// ============================================================================
+--// SETOR: INICIALIZAÇÃO
+--// ============================================================================
+
+updateMatchLabel()
+onNamesUpdate()
+onScoreUpdated()
+onTimerChanged()
+onETChanged()
+
 return {}
-
-

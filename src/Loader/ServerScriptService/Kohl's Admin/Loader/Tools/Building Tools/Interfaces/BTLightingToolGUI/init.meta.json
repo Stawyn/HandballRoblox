@@ -1,0 +1,11 @@
+{
+  "className": "Frame",
+  "properties": {
+    "Active": true,
+    "BackgroundTransparency": 1,
+    "BorderSizePixel": 0,
+    "Draggable": true,
+    "Position": [[0.0, 0.0], [0.4, 0.0]],
+    "Size": [[0.0, 220.0], [0.0, 125.0]]
+  }
+}

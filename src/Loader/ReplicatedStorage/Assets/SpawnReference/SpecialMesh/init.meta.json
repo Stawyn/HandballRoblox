@@ -1,0 +1,9 @@
+{
+  "className": "SpecialMesh",
+  "properties": {
+    "MeshId": "rbxassetid://4761023398",
+    "MeshType": "FileMesh",
+    "Scale": [9, 9, 9],
+    "TextureId": "http://www.roblox.com/asset/?id=4582850426"
+  }
+}

@@ -1,29 +1,87 @@
+--[[
+    ================================================================================
+    MÓDULO: ABHBallClient
+    ================================================================================
+    Descrição: Lógica visual da bola no cliente - animações de bounce e hold.
+               Gerencia a animação de quicar quando jogador tem posse.
+    
+    Funcionalidades:
+        - Animação de bounce (bola quicando na mão)
+        - Sincronização com posse (CurrentPlayerOnBall)
+        - Cleanup automático ao perder posse
+        - Integração com animações de charge/throw
+    
+    Constantes:
+        - BOUNCE_COOLDOWN: 0.25s entre cada bounce
+    
+    Autor: Sistema ABH
+    ================================================================================
+]]
+
+--// ============================================================================
+--// SETOR: SERVIÇOS E DEPENDÊNCIAS
+--// ============================================================================
+
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local SharedTypes = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("SharedTypes"))
-local ABHAnimations = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("ABHAnimations"))
-local Maid = require(game:GetService("ReplicatedStorage"):WaitForChild("Utilities"):WaitForChild("Maid"))
+local SharedTypes = require("../../Utilities/SharedTypes")
+local ABHAnimations = require("../../Utilities/ABHAnimations")
+local Maid = require("../../Utilities/Maid")
+
+--// ============================================================================
+--// SETOR: CONSTANTES E REFERÊNCIAS
+--// ============================================================================
 
 local BOUNCE_COOLDOWN = 0.25
 local BALLS_FOLDER = workspace:WaitForChild("Core"):WaitForChild("Balls") :: Folder
 local MATCH_PAUSED = workspace:WaitForChild("Core"):WaitForChild("Data"):WaitForChild("MatchPaused") :: BoolValue
 
--- Get reference to RefereeEventRemote for pause notifications
-local NETWORK_FOLDER = game:GetService("ReplicatedStorage"):WaitForChild("Network") :: Folder
+-- Network
+local NETWORK_FOLDER = ReplicatedStorage:WaitForChild("Network") :: Folder
 local REFEREE_EVENT_REMOTE = NETWORK_FOLDER:WaitForChild("Referee") :: RemoteEvent
 
 local localPlayer = Players.LocalPlayer
 
-function onBallAdded(ABHBall: SharedTypes.ABHBallInstance)
+--// ============================================================================
+--// SETOR: FUNÇÕES DE ANIMAÇÃO
+--// ============================================================================
+
+--- Verifica se animações de charge estão tocando
+-- @param animator Animator - Animator do personagem
+-- @return boolean - true se alguma animação de charge está tocando
+local function isChargingAnimationPlaying(animator: Animator): boolean
+	local animationsTrackPlaying = animator:GetPlayingAnimationTracks()
+	
+	for _, track: AnimationTrack in animationsTrackPlaying do
+		local animationId = track.Animation.AnimationId
+		if 
+			animationId == ABHAnimations.RHandChargeThrow.AnimationId or 
+			animationId == ABHAnimations.LHandChargeThrow.AnimationId or 
+			animationId == ABHAnimations.SwitchHands.AnimationId or 
+			animationId == ABHAnimations.KeeperAnimation.AnimationId
+		then
+			return true
+		end
+	end
+	
+	return false
+end
+
+--// ============================================================================
+--// SETOR: HANDLER DE BOLA
+--// ============================================================================
+
+--- Callback quando bola é adicionada ao jogo
+local function onBallAdded(ABHBall: SharedTypes.ABHBallInstance)
 	local changedOwnershipMaid = Maid.new()
 	local jumpMaid = Maid.new()
 	local currentPlayerOnBall = ABHBall:WaitForChild("Information"):FindFirstChild("CurrentPlayerOnBall")
 
+	--- Gerencia animação de bounce
 	local function handleBallAnimation()
-		if not currentPlayerOnBall then
-			return
-		end
+		if not currentPlayerOnBall then return end
 
 		local ballOwner = currentPlayerOnBall.Value :: Player
 		if not ballOwner then return end
@@ -41,54 +99,39 @@ function onBallAdded(ABHBall: SharedTypes.ABHBallInstance)
 
 		local originalC0 = ballMotor6D.C0
 
-		-- Use a single connection to check for animation state changes instead of a loop
-		local function checkAnimationState()
-			local animationsTrackPlaying = animator:GetPlayingAnimationTracks()
-			local isChargingAnimationPlaying = false
-
-			for _, track: AnimationTrack in animationsTrackPlaying do
-				local animationId = track.Animation.AnimationId
-				if 
-					animationId == ABHAnimations.RHandChargeThrow.AnimationId or 
-					animationId == ABHAnimations.LHandChargeThrow.AnimationId or 
-					animationId == ABHAnimations.SwitchHands.AnimationId or 
-					animationId == ABHAnimations.KeeperAnimation.AnimationId
-				then
-					isChargingAnimationPlaying = true
-					break
-				end
-			end
-			return isChargingAnimationPlaying
-		end
-
+		--- Loop de bounce
 		local isBouncing = false
 		local function runBounceCycle()
 			if isBouncing then return end
 			isBouncing = true
 
 			while currentPlayerOnBall.Value == ballOwner and ABHBall:IsDescendantOf(workspace) do
-				if checkAnimationState() then
+				-- Para de quicar durante charge/throw
+				if isChargingAnimationPlaying(animator) then
 					ballMotor6D.C0 = originalC0
 					task.wait(0.1)
 					continue
 				end
 
+				-- Toca animação de hold
 				if not holdBallAnimationTrack or not holdBallAnimationTrack.IsPlaying then
 					holdBallAnimationTrack = animator:LoadAnimation(ABHAnimations.HoldBall)
 					holdBallAnimationTrack:Play()
 				end
 
+				-- Bounce para baixo (para o chão)
 				local limit = ABHBall.Size.Y * 1.5
 				local bounceToFieldTween = TweenService:Create(ballMotor6D, tweenInfo, {C0 = CFrame.new(originalC0.X, originalC0.Y, limit)})
 				bounceToFieldTween:Play()
 
-				-- Check for ownership change during tween wait
+				-- Aguarda com verificação de posse
 				local start = tick()
 				while tick() - start < BOUNCE_COOLDOWN and currentPlayerOnBall.Value == ballOwner do
 					task.wait(0.05)
 				end
 				if currentPlayerOnBall.Value ~= ballOwner then break end
 
+				-- Bounce para cima (para a mão)
 				local bounceToHandTween = TweenService:Create(ballMotor6D, tweenInfo, {C0 = originalC0})
 				bounceToHandTween:Play()
 
@@ -98,9 +141,10 @@ function onBallAdded(ABHBall: SharedTypes.ABHBallInstance)
 				end
 				if currentPlayerOnBall.Value ~= ballOwner then break end
 			end
+			
 			isBouncing = false
 
-			-- Cleanup when loop exits
+			-- Cleanup
 			if holdBallAnimationTrack then
 				holdBallAnimationTrack:Stop(0.1)
 				holdBallAnimationTrack = nil
@@ -123,63 +167,68 @@ function onBallAdded(ABHBall: SharedTypes.ABHBallInstance)
 		end)
 	end
 
+	-- Inicia animação se já tem dono
 	if currentPlayerOnBall and currentPlayerOnBall.Value then
 		coroutine.wrap(handleBallAnimation)()
 	end
 
+	-- Monitora mudança de posse
 	if currentPlayerOnBall then
 		changedOwnershipMaid:GiveTask(currentPlayerOnBall:GetPropertyChangedSignal("Value"):Connect(function()
-			-- ALWAYS clean up previous animations state when ownership changes (steal or drop)
 			jumpMaid:DoCleaning()
 
 			if currentPlayerOnBall.Value then
-				-- New owner - start new animation cycle
 				coroutine.wrap(handleBallAnimation)()
 			end
 		end))
 	end
 
+	-- Cleanup quando bola é destruída
 	ABHBall.Destroying:Connect(function()
-		-- Clean up completely when ball is destroyed
 		changedOwnershipMaid:DoCleaning()
 		jumpMaid:DoCleaning()
 	end)
 end
 
+--// ============================================================================
+--// SETOR: INICIALIZAÇÃO
+--// ============================================================================
+
+-- Bolas existentes
 for _, ball in BALLS_FOLDER:GetChildren() do
 	coroutine.wrap(onBallAdded)(ball :: SharedTypes.ABHBallInstance)
 end
+
+-- Novas bolas
 BALLS_FOLDER.ChildAdded:Connect(function(ball)
 	coroutine.wrap(onBallAdded)(ball :: SharedTypes.ABHBallInstance)
 end)
 
--- Handle pause notifications from server to stop animations immediately
-REFEREE_EVENT_REMOTE.OnClientEvent:Connect(function(data)
-	if data and data.action == "BALL_DROPPED_PAUSE" then
-		-- Stop all hold ball animations and reset animation state when pause occurs
+--// ============================================================================
+--// SETOR: HANDLERS DE PAUSE
+--// ============================================================================
+
+--- Para animações quando partida é pausada
+REFEREE_EVENT_REMOTE.OnClientEvent:Connect(function(eventData)
+	if eventData and eventData.action == "BALL_DROPPED_PAUSE" then
 		local character = localPlayer.Character
-		if character then
-			local humanoid = character:FindFirstChild("Humanoid")
-			if humanoid then
-				local animator = humanoid:FindFirstChild("Animator")
-				if animator then
-					-- Stop ALL animation tracks to reset state completely
-					local playingTracks = animator:GetPlayingAnimationTracks()
-					for _, track: AnimationTrack in playingTracks do
-						if track.Animation then
-							local animId = track.Animation.AnimationId
-							-- Stop HoldBall animation specifically
-							if animId == ABHAnimations.HoldBall.AnimationId then
-								track:Stop(0)  -- Stop immediately without fade
-								track:Destroy()
-							end
-						end
-					end
-				end
+		if not character then return end
+		
+		local humanoid = character:FindFirstChild("Humanoid")
+		if not humanoid then return end
+		
+		local animator = humanoid:FindFirstChild("Animator")
+		if not animator then return end
+		
+		-- Para animação HoldBall
+		local playingTracks = animator:GetPlayingAnimationTracks()
+		for _, track: AnimationTrack in playingTracks do
+			if track.Animation and track.Animation.AnimationId == ABHAnimations.HoldBall.AnimationId then
+				track:Stop(0)
+				track:Destroy()
 			end
 		end
 	end
 end)
 
 return {}
-

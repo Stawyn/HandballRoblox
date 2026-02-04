@@ -62,8 +62,8 @@ local COLUMNS = {
 	{Id = "EficPct",    Name = "EF%",       Width = 0.06, Color = COLORS.Attack,    Format = "Percent", Category = "ATAQUE"},
 
 	-- Posse/Tech (Verde)
-	{Id = "Passes",     Name = "PASSES",    Width = 0.08, Color = COLORS.Tech,      Format = "CompAtt", Category = "Tàƒâ€°CNICO"},
-	{Id = "PossessionTime", Name = "POSSE", Width = 0.07, Color = COLORS.Tech,      Format = "FloatShort", Category = "Tàƒâ€°CNICO"},
+	{Id = "Passes",     Name = "PASSES",    Width = 0.08, Color = COLORS.Tech,      Format = "CompAtt", Category = "TECNICO"},
+	{Id = "PossessionTime", Name = "POSSE", Width = 0.07, Color = COLORS.Tech,      Format = "FloatShort", Category = "TECNICO"},
 
 	-- Geral (Vermelho)
 	{Id = "Steals",     Name = "STL",       Width = 0.05, Color = COLORS.Defense,   Format = "Number", Category = "GERAL"},
@@ -306,7 +306,7 @@ local function toggleStats(state)
 
 	GuiInstance.Enabled = state
 
-	-- Esconde o inventário/ferramentas no mobile para não atrapalhar
+	-- Esconde o inventario/ferramentas no mobile para nao atrapalhar
 	pcall(function()
 		game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, not state)
 	end)

@@ -1,29 +1,31 @@
 --[[
-	================================================================================
-	MÓDULO: Player (Gerenciamento de Jogadores)
-	================================================================================
-	
-	Descrição:
-		Módulo responsável por gerenciar jogadores no servidor:
-		- Inicialização de jogadores ao entrar
-		- Gerenciamento de times e ferramentas
-		- Sistema de keybinds persistentes (ProfileStore)
-		- Leaderstats (Ping, Device)
-	
-	Autor: Sistema ABH
-	Refatorado: Documentação, remoção de duplicação em handlers de keybind
-	================================================================================
+    ================================================================================
+    MÓDULO: Player
+    ================================================================================
+    Descrição: Gerenciamento de jogadores no servidor - inicialização, perfis,
+               ferramentas por time e persistência de dados.
+    
+    Funcionalidades:
+        - Inicialização de jogador (atributos, leaderstats)
+        - Carregamento de perfil (ProfileStore)
+        - Distribuição de ferramentas por time
+        - Teletransporte ao mudar de time
+        - Gerenciamento de keybinds persistentes
+    
+    Ferramentas por Time:
+        - Officials: SpawnTool, RefSpawnTool, PenaltySpawnTool, RC, YC
+        - Goalkeeper: KeeperTool
+        - Lobby (sem partida): SpawnTool, KeeperTool
+    
+    Autor: Sistema ABH
+    ================================================================================
 ]]
 
 --// ============================================================================
---// SETOR: Definição do Módulo
+--// SETOR: SERVIÇOS E DEPENDÊNCIAS
 --// ============================================================================
 
 local PlayerModule = {}
-
---// ============================================================================
---// SETOR: Serviços do Roblox
---// ============================================================================
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -31,26 +33,20 @@ local ServerStorage = game:GetService("ServerStorage")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
---// ============================================================================
---// SETOR: Dependências
---// ============================================================================
-
 local KeybindsInit = require("./KeybindInit")
 local CharacterModule = require("../Implementation/PlayerCharacter")
 local PingModule = require("../Implementation/PingModule")
 local ProfileStore = require("../Implementation/ProfileStore")
 
 --// ============================================================================
---// SETOR: Referências
+--// SETOR: REFERÊNCIAS E CONSTANTES
 --// ============================================================================
 
+-- Rede
 local PLAYER_DATA = ReplicatedStorage:WaitForChild("Network"):WaitForChild("PlayerData") :: RemoteFunction
 local DATA_FOLDER = workspace:WaitForChild("Core"):WaitForChild("Data")
 
---// ============================================================================
---// SETOR: Ferramentas Disponíveis
---// ============================================================================
-
+-- Ferramentas
 local PENALTY_SPAWN_TOOL = ServerStorage:WaitForChild("PenaltySpawnTool") :: Tool
 local REF_SPAWN_TOOL = ServerStorage:WaitForChild("RefSpawnTool") :: Tool
 local SPAWN_TOOL = ServerStorage:WaitForChild("SpawnTool") :: Tool
@@ -58,61 +54,50 @@ local KEEPER_TOOL = ServerStorage:WaitForChild("KeeperTool") :: Tool
 local RC_TOOL = ServerStorage:WaitForChild("RC") :: Tool
 local YC_TOOL = ServerStorage:WaitForChild("YC") :: Tool
 
---// ============================================================================
---// SETOR: Constantes de DataStore
---// ============================================================================
+-- DataStore Key (diferente para Studio vs Produção)
+local DS_KEY = if RunService:IsStudio() then "DEV_DATA" else "PROD_DATA"
 
-local DS_KEY
-if RunService:IsStudio() then
-	DS_KEY = "DEV_DATA"
-else
-	DS_KEY = "PROD_DATA"
-end
-
+-- Template de perfil padrão
 local PROFILE_TEMPLATE = {
-	Inputs = KeybindsInit.DefaultActions
+	Inputs = KeybindsInit.DefaultActions,
+	Coins = 0,
+	Emotes = {}
+}
+
+-- Atributos padrão do jogador
+local ATTRIBUTES = {
+	{"CurrentHand", "R"},
+	{"GoalkeeperCooldown", 0}
 }
 
 --// ============================================================================
---// SETOR: Estado Global
+--// SETOR: ESTADO
 --// ============================================================================
 
 local playerStore = ProfileStore.New(DS_KEY, PROFILE_TEMPLATE)
 local profiles: {[Player]: typeof(playerStore:StartSessionAsync())} = {}
 
 --// ============================================================================
---// SETOR: Constantes de Atributos Padrào
+--// SETOR: POSIÇÕES DE SPAWN POR TIME
 --// ============================================================================
 
-local DEFAULT_ATTRIBUTES = {
-	{"CurrentHand", "R"},      -- mão padrào (R = direita)
-	{"GoalkeeperCooldown", 0}  -- Cooldown do goleiro
+local SPAWN_POSITIONS = {
+	["-Home Goalkeeper"] = CFrame.new(Vector3.new(-126, 15, 0), Vector3.new(0, 15, 0)),
+	["-Away Goalkeeper"] = CFrame.new(Vector3.new(126, 15, 0), Vector3.new(0, 15, 0)),
+	["Home Team"] = CFrame.new(Vector3.new(-82, 10, 0), Vector3.new(0, 10, 0)),
+	["Away Team"] = CFrame.new(Vector3.new(82, 10, 0), Vector3.new(0, 10, 0)),
 }
 
 --// ============================================================================
---// SETOR: Constantes de Spawn por Time
+--// SETOR: FUNÇÕES DE FERRAMENTAS
 --// ============================================================================
 
-local TEAM_SPAWN_POSITIONS = {
-	["-Home Goalkeeper"] = {position = Vector3.new(-126, 15, 0), lookAt = Vector3.new(0, 15, 0)},
-	["-Away Goalkeeper"] = {position = Vector3.new(126, 15, 0), lookAt = Vector3.new(0, 15, 0)},
-	["Home Team"] = {position = Vector3.new(-82, 10, 0), lookAt = Vector3.new(0, 10, 0)},
-	["Away Team"] = {position = Vector3.new(82, 10, 0), lookAt = Vector3.new(0, 10, 0)},
-}
+--- Lista de nomes de ferramentas para limpeza
+local TOOL_NAMES = {"SpawnTool", "RefSpawnTool", "PenaltySpawnTool", "RC", "YC", "KeeperTool"}
 
---// ============================================================================
---// SETOR: Lista de Ferramentas por Time
---// ============================================================================
-
-local TOOLS_TO_CLEAR = {"SpawnTool", "RefSpawnTool", "PenaltySpawnTool", "RC", "YC", "KeeperTool"}
-
---// ============================================================================
---// SETOR: Funções Auxiliares
---// ============================================================================
-
---- Remove ferramentas antigas do jogador (Backpack e Character)
+--- Limpa ferramentas do jogador
 local function clearPlayerTools(player: Player)
-	for _, toolName in TOOLS_TO_CLEAR do
+	for _, toolName in TOOL_NAMES do
 		local t = player.Backpack:FindFirstChild(toolName)
 		if t then t:Destroy() end
 		if player.Character then
@@ -122,119 +107,88 @@ local function clearPlayerTools(player: Player)
 	end
 end
 
---- Teletransporta jogador para posição do time
-local function teleportToTeamSpawn(player: Player)
-	if player:GetAttribute("IsRejoining") == true then
-		return
-	end
-
-	local character = player.Character
-	if not character or not character:FindFirstChild("HumanoidRootPart") or not player.Team then
-		return
-	end
-
-	local teamName = player.Team.Name
-	local spawnData = TEAM_SPAWN_POSITIONS[teamName]
-
-	if spawnData then
-		character:PivotTo(CFrame.new(spawnData.position, spawnData.lookAt))
-	end
-end
-
---- Dá ferramentas baseado no time do jogador
+--- Dá ferramentas baseado no time
 local function giveTeamTools(player: Player)
 	if not player.Team then return end
-
 	local teamName = player.Team.Name
 
 	if teamName == "Officials" then
-		-- Árbitros recebem todas as ferramentas de controle
 		SPAWN_TOOL:Clone().Parent = player.Backpack
 		REF_SPAWN_TOOL:Clone().Parent = player.Backpack
 		PENALTY_SPAWN_TOOL:Clone().Parent = player.Backpack
 		RC_TOOL:Clone().Parent = player.Backpack
 		YC_TOOL:Clone().Parent = player.Backpack
-
 	elseif teamName:find("Goalkeeper") then
-		-- Goleiros recebem ferramenta de keeper
 		KEEPER_TOOL:Clone().Parent = player.Backpack
+	elseif teamName == "Lobby" and DATA_FOLDER.Match.Value == false then
+		SPAWN_TOOL:Clone().Parent = player.Backpack
+		KEEPER_TOOL:Clone().Parent = player.Backpack
+	end
+end
 
-	elseif teamName == "Lobby" then
-		-- Lobby só recebe ferramentas se não houver partida
-		if DATA_FOLDER.Match.Value == false then
-			SPAWN_TOOL:Clone().Parent = player.Backpack
-			KEEPER_TOOL:Clone().Parent = player.Backpack
+--// ============================================================================
+--// SETOR: HANDLERS DE EVENTOS
+--// ============================================================================
+
+--- Callback quando jogador muda de time
+function onTeamChanged(player: Player)
+	clearPlayerTools(player)
+
+	-- Teletransporte ao mudar de time
+	task.defer(function()
+		if player:GetAttribute("IsRejoining") == true then return end
+
+		local character = player.Character
+		if character and character:FindFirstChild("HumanoidRootPart") and player.Team then
+			local spawnCFrame = SPAWN_POSITIONS[player.Team.Name]
+			if spawnCFrame then
+				character:PivotTo(spawnCFrame)
+			end
+		end
+	end)
+
+	giveTeamTools(player)
+end
+
+--// ============================================================================
+--// SETOR: CURRENCY & EMOTES
+--// ============================================================================
+
+function PlayerModule:AddCoins(player: Player, amount: number)
+	local profile = profiles[player]
+	if profile then
+		profile.Data.Coins = (profile.Data.Coins or 0) + amount
+		local leaderstats = player:FindFirstChild("leaderstats")
+		if leaderstats and leaderstats:FindFirstChild("Coins") then
+			leaderstats.Coins.Value = profile.Data.Coins
+		end
+	end
+end
+
+function PlayerModule:AddEmote(player: Player, emoteName: string)
+	local profile = profiles[player]
+	if profile then
+		if not profile.Data.Emotes then profile.Data.Emotes = {} end
+		if not table.find(profile.Data.Emotes, emoteName) then
+			table.insert(profile.Data.Emotes, emoteName)
+			
+			local emotesFolder = player:FindFirstChild("Emotes")
+			if emotesFolder and not emotesFolder:FindFirstChild(emoteName) then
+				local val = Instance.new("StringValue")
+				val.Name = emoteName
+				val.Parent = emotesFolder
+			end
 		end
 	end
 end
 
 --// ============================================================================
---// SETOR: Handler de Mudança de Time
+--// SETOR: INICIALIZAÇÃO DE JOGADOR
 --// ============================================================================
 
---- Processa mudança de time do jogador
-function onTeamChanged(player: Player)
-	-- Limpa ferramentas antigas
-	clearPlayerTools(player)
-
-	-- Teletransporta para spawn do time
-	task.defer(function()
-		teleportToTeamSpawn(player)
-	end)
-
-	-- Dá ferramentas do novo time
-	giveTeamTools(player)
-end
-
---// ============================================================================
---// SETOR: Handler de Keybinds (Refatorado - Sem Duplicação)
---// ============================================================================
-
---- Valida e aplica mudança de keybind
--- @param profile - Perfil do jogador
--- @param context - Contexto do input (ex: "Throw Tool")
--- @param action - Ação específica (ex: "Throw")
--- @param keybind - Novo keybind (string do Enum.KeyCode)
--- @param inputType - Tipo de input ("Keyboard", "Controller", ou nil para mobile offset)
--- @return success, errorMessage
-local function handleKeybindChange(profile, context: string, action: string, keybind: string, inputType: string): (boolean, string?)
-	-- Validação de argumentos
-	if not context or not action or not keybind then
-		return false, "Insufficient arguments. Please try again"
-	end
-
-	-- Validação do keybind (deve ser um KeyCode válido)
-	if not Enum.KeyCode[keybind] then
-		return false, "Invalid keybind or it's not supported. Please try again with other one"
-	end
-
-	-- Aplica a mudança
-	profile.Data.Inputs[context][action][inputType] = keybind
-	return true, nil
-end
-
---- Handler de mudança de controles mobile (offset e escala)
-local function handleMobileControlsChange(profile, context: string, action: string, offset: {number}, scale: number): (boolean, string?)
-	-- Validação de argumentos
-	if not context or not action or not offset or not scale then
-		return false, "Insufficient arguments. Please try again"
-	end
-
-	-- Clamp da escala entre 0.5 e 2
-	scale = math.clamp(scale, 0.5, 2)
-
-	-- Aplica as mudanças
-	profile.Data.Inputs[context][action]["Scalar"] = scale 
-	profile.Data.Inputs[context][action]["MobOffset"] = {offset[1], offset[2]}
-	return true, nil
-end
-
---// ============================================================================
---// SETOR: Inicialização de Jogador
---// ============================================================================
-
+--- Inicializa jogador quando entra no jogo
 function PlayerModule:OnPlayerAdded(player: Player)
-	-- Cria leaderstats
+	-- Leaderstats
 	local leaderstats = Instance.new("Folder")
 	leaderstats.Name = "leaderstats"
 
@@ -243,12 +197,17 @@ function PlayerModule:OnPlayerAdded(player: Player)
 	ping.Value = 500
 	ping.Parent = leaderstats
 
+	local coins = Instance.new("NumberValue")
+	coins.Name = "Coins"
+	coins.Value = 0
+	coins.Parent = leaderstats
+
 	local device = Instance.new("StringValue")
 	device.Name = "Device"
 	device.Value = "🖥️"
 	device.Parent = leaderstats
 
-	-- Inicializa módulo de personagem
+	-- Inicializa character module
 	CharacterModule:Init(player)
 
 	-- Carrega perfil do ProfileStore
@@ -264,7 +223,7 @@ function PlayerModule:OnPlayerAdded(player: Player)
 
 		profile.OnSessionEnd:Connect(function()
 			profiles[player] = nil
-			player:Kick("Profile session end - Please rejoin")
+			player:Kick("Profile season end - Please rejoin")
 		end)
 
 		if player.Parent == Players then
@@ -274,18 +233,35 @@ function PlayerModule:OnPlayerAdded(player: Player)
 		end
 
 		KeybindsInit:Start(player, profile.Data.Inputs)
+
+		-- Carregar Coins
+		if leaderstats:FindFirstChild("Coins") then
+			leaderstats.Coins.Value = profile.Data.Coins or 0
+		end
+
+		-- Carregar Emotes
+		local emotesFolder = Instance.new("Folder")
+		emotesFolder.Name = "Emotes"
+		emotesFolder.Parent = player
+		if profile.Data.Emotes then
+			for _, emoteName in ipairs(profile.Data.Emotes) do
+				local val = Instance.new("StringValue")
+				val.Name = emoteName
+				val.Parent = emotesFolder
+			end
+		end
 	else
 		player:Kick("Profile load fail - Please rejoin")
 	end
 
-	-- Aplica atributos padrào
-	for _, attributeVector in DEFAULT_ATTRIBUTES do
+	-- Configura atributos
+	for _, attributeVector in ATTRIBUTES do
 		player:SetAttribute(attributeVector[1] :: string, attributeVector[2])
 	end
 
 	leaderstats.Parent = player
 
-	-- Conecta handlers de time
+	-- Conecta eventos
 	coroutine.wrap(onTeamChanged)(player)
 	player:GetPropertyChangedSignal("Team"):Connect(function()
 		coroutine.wrap(onTeamChanged)(player)
@@ -294,19 +270,19 @@ function PlayerModule:OnPlayerAdded(player: Player)
 		coroutine.wrap(onTeamChanged)(player)
 	end)
 
-	-- Inicializa módulo de ping
+	-- Inicializa ping
 	PingModule:Initialize(player, ping)
 end
 
 --// ============================================================================
---// SETOR: Conexões de Jogadores
+--// SETOR: CONEXÕES DE EVENTOS
 --// ============================================================================
 
 Players.PlayerAdded:Connect(function(player)
 	PlayerModule:OnPlayerAdded(player)
 end)
 
--- Processa jogadores que já estavam no servidor
+-- Inicializa jogadores que já estão no jogo (Studio)
 for _, player in Players:GetPlayers() do
 	task.spawn(function()
 		PlayerModule:OnPlayerAdded(player)
@@ -321,41 +297,64 @@ Players.PlayerRemoving:Connect(function(player)
 end)
 
 --// ============================================================================
---// SETOR: Handler de RemoteFunction (PlayerData)
+--// SETOR: REMOTE FUNCTION - PLAYER DATA
 --// ============================================================================
 
+--- Handler para mudanças de keybinds
+-- TODO: Refatorar para sistema mais limpo
 PLAYER_DATA.OnServerInvoke = function(player: Player, action, data)
 	local profile = profiles[player]
-
-	-- Valida que o perfil existe
 	if not profile then
 		player:Kick("Profile load fail - Please rejoin")
-		return false, "Profile not loaded"
+		return false, "No profile"
 	end
 
-	-- Handler de mudança de keybind do teclado
 	if action == "CHANGE_KEYBOARD_KEYBIND" then
 		local context = data[1] :: string
 		local actionName = data[2] :: string
 		local keybind = data[3] :: string
-		return handleKeybindChange(profile, context, actionName, keybind, "Keyboard")
 
-		-- Handler de mudança de keybind do controle
+		if not context or not actionName or not keybind then
+			return false, "Insufficient arguments. Please try again"
+		end
+
+		if not Enum.KeyCode[keybind] then
+			return false, "Invalid keybind or it's not supported. Please try again with other one"
+		end
+
+		profile.Data.Inputs[context][actionName]["Keyboard"] = keybind
+		return true
+
 	elseif action == "CHANGE_GAMEPAD_CONTROLS" then
 		local context = data[1] :: string
 		local actionName = data[2] :: string
 		local keybind = data[3] :: string
-		return handleKeybindChange(profile, context, actionName, keybind, "Controller")
 
-		-- Handler de mudança de controles mobile
+		if not context or not actionName or not keybind then
+			return false, "Insufficient arguments. Please try again"
+		end
+
+		if not Enum.KeyCode[keybind] then
+			return false, "Invalid keybind or it's not supported. Please try again with other one"
+		end
+
+		profile.Data.Inputs[context][actionName]["Controller"] = keybind
+		return true
+
 	elseif action == "CHANGE_MOBILE_CONTROLS" then
 		local context = data[1] :: string
 		local actionName = data[2] :: string
 		local offset = data[3] :: {number}
-		local scale = data[4] :: number
-		return handleMobileControlsChange(profile, context, actionName, offset, scale)
+		local scale = math.clamp(data[4], 0.5, 2) :: number 
 
-		-- Handler de reset de keybinds
+		if not context or not actionName or not offset or not scale then
+			return false, "Insufficient arguments. Please try again"
+		end
+
+		profile.Data.Inputs[context][actionName]["Scalar"] = scale 
+		profile.Data.Inputs[context][actionName]["MobOffset"] = {offset[1], offset[2]}
+		return true
+
 	elseif action == "RESET_KEYBINDS" then
 		profile.Data.Inputs = table.clone(PROFILE_TEMPLATE.Inputs)
 		return true, PROFILE_TEMPLATE.Inputs
@@ -363,9 +362,5 @@ PLAYER_DATA.OnServerInvoke = function(player: Player, action, data)
 
 	return false, "Unknown action"
 end
-
---// ============================================================================
---// SETOR: Retorno do Módulo
---// ============================================================================
 
 return PlayerModule

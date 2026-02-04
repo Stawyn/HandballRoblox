@@ -59,4 +59,3 @@ function Tracker:SetLabel(label: TextLabel): nil
 end
 
 return Tracker
-

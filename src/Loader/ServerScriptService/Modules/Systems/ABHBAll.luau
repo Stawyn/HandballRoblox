@@ -1,76 +1,66 @@
 --[[
-	================================================================================
-	MÓDULO: ABHBall (Sistema Principal de Bola)
-	================================================================================
-	
-	Descrição:
-		Módulo central que gerencia toda a física, interações e comportamento
-		das bolas no jogo ABH. Controla:
-		- Criação e destruição de bolas
-		- Sistema de posse (ownership)
-		- Física de arrasto (drag) e forças verticais
-		- Detecção de tackles e saves
-		- Timer de posse e violações
-		- Estatísticas de jogo (passes, chutes, roubos)
-	
-	Autor: Sistema ABH
-	Refatorado: Documentação e organização por setores
-	
-	AVISO: Este é um módulo crítico. Alterações na física podem quebrar o jogo.
-	================================================================================
+    ================================================================================
+    MÓDULO: ABHBall
+    ================================================================================
+    Descrição: Sistema central de física, posse e manipulação da bola no jogo ABH.
+    
+    Funcionalidades:
+        - Física da bola (drag, gravidade, colisão)
+        - Sistema de posse (Motor6D weld)
+        - Arremesso e cálculo de força
+        - Detecção de tackles e saves
+        - Timer de posse (5 segundos)
+        - Anti-Stuck e Anti-Void
+        - Integração com estatísticas (GameStatistics)
+    
+    Dependências:
+        - Maid/Janitor: Limpeza de conexões
+        - SharedTypes: Tipos compartilhados
+        - TeamUtils: Verificações de times
+        - GameStatistics: Registro de eventos
+    
+    Autor: Sistema ABH
+    ================================================================================
 ]]
 
 --// ============================================================================
---// SETOR: Definição do Módulo
+--// SETOR: SERVIÇOS E DEPENDÊNCIAS
 --// ============================================================================
 
 local ABHBall = {}
 
---// ============================================================================
---// SETOR: Dependências Externas
---// ============================================================================
+-- Utilitários e Tipos
+local Maid = require("../../../ReplicatedStorage/Utilities/Maid")
+local Janitor = require("../../../ReplicatedStorage/Utilities/Janitor")
+local FixedPower = require("../../../ReplicatedStorage/Modules/Implementation/ThrowPower")
+local SharedTypes = require("../../../ReplicatedStorage/Utilities/SharedTypes")
+local VectorLib = require("../../../ReplicatedStorage/Utilities/Vector")
+local SharedAttributes = require("../../../ReplicatedStorage/Modules/Implementation/SharedAttributes")
+local Utils = require("../../../ReplicatedStorage/Utilities/Utils")
+local TeamUtils = require("../../../ReplicatedStorage/Utilities/TeamUtils")
+local ServerEvents = require("../Implementation/ServerEvents")
+local GameStatistics = require("./GameStatistics")
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local UtilitiesFolder = ReplicatedStorage:WaitForChild("Utilities")
-local ModulesFolder = ReplicatedStorage:WaitForChild("Modules")
-
-local Maid = require(UtilitiesFolder:WaitForChild("Maid"))
-local Janitor = require(UtilitiesFolder:WaitForChild("Janitor"))
-local FixedPower = require(ModulesFolder:WaitForChild("Implementation"):WaitForChild("ThrowPower"))
-local SharedTypes = require(UtilitiesFolder:WaitForChild("SharedTypes"))
-local VectorLib = require(UtilitiesFolder:WaitForChild("Vector"))
-local SharedAttributes = require(ModulesFolder:WaitForChild("Implementation"):WaitForChild("SharedAttributes"))
-local Utils = require(UtilitiesFolder:WaitForChild("Utils"))
-local ServerEvents = require(script.Parent.Parent:WaitForChild("Implementation"):WaitForChild("ServerEvents"))
-
--- Raposa: Sistema de estatísticas
-local GameStatistics = require(script.Parent:WaitForChild("GameStatistics"))
-
---// ============================================================================
---// SETOR: Serviços do Roblox
---// ============================================================================
-
+-- Serviços Roblox
 local ServerStorage = game:GetService("ServerStorage")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Debris = game:GetService("Debris")
 local Teams = game:GetService("Teams")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 --// ============================================================================
---// SETOR: Referências de Times
+--// SETOR: REFERÊNCIAS E CONSTANTES
 --// ============================================================================
 
+-- Times
 local HOME_TEAM = Teams:WaitForChild("Home Team")
 local HOME_GK = Teams:WaitForChild("-Home Goalkeeper")
 local AWAY_GK = Teams:WaitForChild("-Away Goalkeeper")
 local AWAY_TEAM = Teams:WaitForChild("Away Team")
 
---// ============================================================================
---// SETOR: Referências do Workspace e Storage
---// ============================================================================
-
+-- Instâncias do Jogo
 local BALL_INSTANCE = ServerStorage:WaitForChild("ABHBall") :: SharedTypes.ABHBallInstance
 local CORE_FOLDER = workspace:WaitForChild("Core")
 local DATA_FOLDER = CORE_FOLDER:WaitForChild("Data") 
@@ -79,65 +69,36 @@ local BALL_TIMER = DATA_FOLDER:WaitForChild("BallTimer")
 local MATCH_VALUE = DATA_FOLDER:WaitForChild("Match")
 local MATCH_PAUSED = DATA_FOLDER:WaitForChild("MatchPaused")
 local HOME_GLT = CORE_FOLDER:WaitForChild("GLT"):WaitForChild("Home")
-local AWAY_GLT = CORE_FOLDER:WaitForChild("GLT"):WaitForChild("Away")
 
 local NETWORK_FOLDER = ReplicatedStorage:WaitForChild("Network") :: Folder
 local LEAGUE_EVENT = NETWORK_FOLDER:WaitForChild("LeagueEvent") :: RemoteEvent
 local HOME_AREA = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("HomeArea") :: BasePart
 local AWAY_AREA = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("AwayArea") :: BasePart
 
---// ============================================================================
---// SETOR: Constantes de Física e Gameplay
---// ============================================================================
-
-local BALL_INTERACTION_COOLDOWN = 2       -- Tempo entre interações do mesmo jogador com a bola
-local TACKLE_COOLDOWN = 0.5               -- Tempo para reabilitar tackle após pegar bola
+local BALL_INTERACTION_COOLDOWN = 2
+local TACKLE_COOLDOWN = 0.5
 local BALL_OFFSET = CFrame.new(0, -BALL_INSTANCE.Size.Y / 2, BALL_INSTANCE.Size.Z / 2)
 local RELEASE_OFFSET = CFrame.new(0, 0, BALL_INSTANCE.Size.Y / 2)
-local DEFAULT_BALL_TIMER = 5              -- Tempo padrào de posse antes de violação
-local DRAG_CONSTANT = SharedAttributes:GetKDrag()  -- Coeficiente de arrasto
-local POWER_MULTIPLIER = 170              -- Multiplicador base de força de arremesso
-local VERTICAL_AMPLIFIER = Vector3.new(0, 0.0375, 0)  -- Componente vertical do arremesso
-local SAVE_FACTOR = 0.5                   -- Fator de redução de velocidade no save
-local VERTICAL_SAVE_LINEAR = 30           -- Força vertical aplicada no save
-local THROW_BUFF = 1.5                    -- Buff base de arremesso
+local DEFAULT_BALL_TIMER = 5
+local DRAG_CONSTANT = SharedAttributes:GetKDrag()
+local POWER_MULTIPLIER = 170
+local VERTICAL_AMPLIFIER = Vector3.new(0, 0.0375, 0)
+local SAVE_FACTOR = 0.5
+local VERTICAL_SAVE_LINEAR = 30
+local THROW_BUFF = 1.5
 
---// ============================================================================
---// SETOR: Estado Global (Rastreamento de Bolas)
---// ============================================================================
 
--- Conexões de eventos por bola (cada bola tem seus próprios listeners)
 local ballConnections = {}
-
--- Cooldown de interação por jogador por bola
 local ballPlayersCooldown = {}
-
--- Motor6D de posse por bola
 local ballMotors6D = {}
-
--- Cooldown de interação com GLT (linha de gol)
 local gltInteractionCooldown = {}
-
--- Posições dos jogadores (para tracking)
 local playersPositions = {}
 
--- Bolas ativas no jogo
 local activeBalls = {}
 
--- Rastreamento de posição para Anti-Stuck
 local ballPositionsTrack = {}
 
---// ============================================================================
---// SETOR: Loop Principal de Física (Stepped)
---// ============================================================================
-
---[[
-	Loop central que processa todas as bolas a cada frame.
-	Responsável por:
-	- Cálculo de força de arrasto (drag)
-	- Detecção de bola travada (Anti-Stuck)
-	- Resgate de bola do void (Anti-Void)
-]]
+-- Manager for ball physics to reduce individual Stepped connections
 RunService.Stepped:Connect(function(deltaTime)
 	local now = tick()
 	for ABHBall, connections in ballConnections do
@@ -149,18 +110,17 @@ RunService.Stepped:Connect(function(deltaTime)
 				ballPositionsTrack[ABHBall] = track
 			end
 
-			-- Verifica se a bola está se movendo
 			if (ABHBall.Position - track.lastPos).Magnitude > 0.1 then
 				track.lastPos = ABHBall.Position
 				track.lastTime = now
 			elseif not ABHBall.Anchored and now - track.lastTime > 15 then
-				-- Bola imóvel por 15 segundos: resetar para o meio do campo
+				-- Bola imovel por 15 segundos: resetar para o meio
 				ABHBall.Position = Vector3.new(0, 10, 0)
 				ABHBall.AssemblyLinearVelocity = Vector3.zero
 				track.lastTime = now
 			end
 
-			-- Raposa: Anti-Void (bola caiu do mapa)
+			-- Raposa: Anti-Void
 			if ABHBall.Position.Y < -10 then
 				local lastThrower = ABHBall.Information.LastThrow.Value
 				if lastThrower and lastThrower.Character and lastThrower.Character:FindFirstChild("Head") then
@@ -173,96 +133,61 @@ RunService.Stepped:Connect(function(deltaTime)
 				ABHBall.AssemblyAngularVelocity = Vector3.zero
 				ABHBall.CanCollide = true
 			end
+			-- Fim Raposa
 
-			-- Cálculo de força de arrasto (drag) - aplicada horizontalmente
+			-- Drag calculation
 			local velocity = ABHBall.AssemblyLinearVelocity
 			local appliedForce = -(velocity * DRAG_CONSTANT)
-			appliedForce *= Vector3.new(1, 0, 1)  -- Remove componente Y
+			appliedForce *= Vector3.new(1, 0, 1)
 			ABHBall.ResistanceForce.Force = appliedForce
 		end
 	end
 end)
 
---// ============================================================================
---// SETOR: Documentação de Conexões
---// ============================================================================
-
 --[[
-	Referência de índices de conexào por bola:
-	ballConnections[ABHBall][1] = Collision (mudança de posse)
-	ballConnections[ABHBall][2] = Ball touch (toque na bola)
-	ballConnections[ABHBall][3] = Ball timer (contagem de tempo)
-	ballConnections[ABHBall][4] = Unused (anteriormente Air Resistance)
-	ballConnections[ABHBall][5] = Ball velocity reducer (redução ao tocar campo)
-]]
+For reference purposes.
+Let A be a vector of connections for each ABHBall instance, i.e., ballConnections[ABHBall]:
+A[1] := Collision
+A[2] := Ball touch
+A[3] := Ball timer
+A[4] := Unused (formerly Air Resistance)
+A[5] := Ball velocity reducer
+--]]
 
 --// ============================================================================
---// SETOR: Funções Auxiliares
+--// SETOR: FUNÇÕES AUXILIARES INTERNAS
 --// ============================================================================
 
---- Inicializa as conexões de uma bola
+--- Inicializa conexões para uma bola
+-- @param ABHBall SharedTypes.ABHBallInstance - Instância da bola
 function InitConnection(ABHBall: SharedTypes.ABHBallInstance)
 	ballConnections[ABHBall] = table.create(5, Maid.new())
 end
 
---- Verifica se dois jogadores são do mesmo time (Home ou Away)
--- Raposa: Função para detectar passes vs turnovers
-local function IsSameTeam(p1: Player, p2: Player): boolean
-	if not p1 or not p2 or not p1.Team or not p2.Team then return false end
-	local t1 = p1.Team.Name
-	local t2 = p2.Team.Name
-	local t1Key = if t1:find("Home") then "Home" else "Away"
-	local t2Key = if t2:find("Home") then "Home" else "Away"
-	return t1Key == t2Key
-end
 
---- Calcula o multiplicador de força baseado na marcação
--- Quanto mais oponentes próximos, mais força no arremesso
-function throwPowerTransformation(x: number): number
+--- Transformação de força de arremesso baseada em marcação
+-- @param x number - Quantidade de oponentes marcando
+-- @return number - Multiplicador de força
+function throwPowerTransformation(x: number)
 	local int = math.floor(x)
 	int = math.max(0, int)
+
 	local t = THROW_BUFF - 0.6 * math.log(int + 1)
 	return math.max(0.5, t)
 end
 
---- Conta quantos oponentes estào próximos do jogador
-function countOpponentsInRadius(blacklistPlayer: Player, center: Vector3): number
-	local radiusSquared = 10 * 10
-	local count = 0
-
-	local presumedTeam = if blacklistPlayer.Team then blacklistPlayer.Team.Name else ""
-	local opponents = {}
-	if presumedTeam:find("Home") then
-		opponents = Utils:MergeTables(AWAY_TEAM:GetPlayers(), AWAY_GK:GetPlayers())
-	else
-		opponents = Utils:MergeTables(HOME_TEAM:GetPlayers(), HOME_GK:GetPlayers())
-	end
-
-	for _, player in opponents do
-		if player == blacklistPlayer then
-			continue
-		end
-		local character = player.Character
-		if character then
-			local humanoidRootPart = character:FindFirstChild("HumanoidRootPart") :: BasePart?
-			if humanoidRootPart then
-				local offset = humanoidRootPart.Position - center
-				local distanceSquared = offset:Dot(offset)
-				if distanceSquared <= radiusSquared then
-					count += 1
-				end
-			end
-		end
-	end
-
-	return count
+--- Conta oponentes em um raio (usa TeamUtils internamente)
+-- @param blacklistPlayer Player - Jogador a ignorar
+-- @param center Vector3 - Centro da busca
+-- @return number - Quantidade de oponentes
+local function countOpponentsInRadius(blacklistPlayer: Player, center: Vector3): number
+	return TeamUtils.countOpponentsInRadius(blacklistPlayer, center, 10)
 end
 
 --// ============================================================================
---// SETOR: Handlers de Eventos da Bola
+--// SETOR: HANDLERS DE EVENTOS DA BOLA
 --// ============================================================================
 
---- Handler de colisão: gerencia quando a bola muda de posse
 function HandleCollision(ABHBall: SharedTypes.ABHBallInstance) 
 	if not ballConnections[ABHBall] then
 		return
@@ -270,12 +195,10 @@ function HandleCollision(ABHBall: SharedTypes.ABHBallInstance)
 
 	local resistanceForce = ABHBall.ResistanceForce
 	local playerOnBall = ABHBall.Information.CurrentPlayerOnBall	
-
 	ballConnections[ABHBall][1]:GiveTask(playerOnBall:GetPropertyChangedSignal("Value"):Connect(function()
 		if not playerOnBall.Value then
-			-- Bola solta: habilita força de arrasto
 			resistanceForce.Enabled = true
-			-- Restaura CanCollide imediatamente para evitar atravessar objetos
+			-- IMMEDIATELY restore CanCollide when ball is released to prevent phasing
 			task.spawn(function()
 				local originalCanCollide = ABHBall:GetAttribute("OriginalCanCollide")
 				if originalCanCollide ~= nil then
@@ -286,18 +209,15 @@ function HandleCollision(ABHBall: SharedTypes.ABHBallInstance)
 				end
 			end)
 		else 
-			-- Bola em posse: desabilita força de arrasto
 			resistanceForce.Enabled = false
 		end
 	end))
 end
 
---- Aplica o Motor6D que conecta a bola à mão do jogador
 function ApplyBallWeld(ABHBall: SharedTypes.ABHBallInstance, player: Player)
 	local character = player.Character :: Model
 	local currentHand = player:GetAttribute("CurrentHand")
 
-	-- Determina qual mão usar (L = esquerda, R = direita)
 	local presumedHand: BasePart
 	if currentHand == "L" then
 		presumedHand = character:FindFirstChild("Left Arm") :: BasePart
@@ -305,13 +225,11 @@ function ApplyBallWeld(ABHBall: SharedTypes.ABHBallInstance, player: Player)
 		presumedHand = character:FindFirstChild("Right Arm") :: BasePart
 	end
 
-	-- Remove Motor6D existente se houver
 	local existingMotor6D = ballMotors6D[ABHBall]
 	if existingMotor6D then
 		existingMotor6D:Destroy()
 	end
 
-	-- Cria novo Motor6D
 	local motor6D = Instance.new("Motor6D")
 	motor6D.Name = "BallOwnership"
 	motor6D.Part0 = presumedHand
@@ -321,27 +239,20 @@ function ApplyBallWeld(ABHBall: SharedTypes.ABHBallInstance, player: Player)
 
 	ballMotors6D[ABHBall] = motor6D
 
-	-- Atualiza cor da trilha para cor do time
 	ABHBall.Trail.Color = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, player.TeamColor.Color),
 		ColorSequenceKeypoint.new(1, player.TeamColor.Color)
 	})
-
-	-- Registra cooldown de interação
 	ballPlayersCooldown[ABHBall][player.UserId] = os.clock()
 
-	-- Salva estado original de CanCollide para restaurar depois
+	-- Store original CanCollide state before modifying
+	-- This prevents camera issues while maintaining proper physics when released
 	if not ABHBall:GetAttribute("OriginalCanCollide") then
 		ABHBall:SetAttribute("OriginalCanCollide", ABHBall.CanCollide)
 	end
 	ABHBall.CanCollide = false
 end
 
---// ============================================================================
---// SETOR: Handler de Toque na Bola (Pegar Bola)
---// ============================================================================
-
---- Handler principal de toque: processa quando um jogador toca a bola
 function HandleBallTouch(ABHBall: SharedTypes.ABHBallInstance)
 	if not ballConnections[ABHBall] then
 		return
@@ -351,44 +262,39 @@ function HandleBallTouch(ABHBall: SharedTypes.ABHBallInstance)
 	local lastThrow = informationFolder.LastThrow
 
 	ballConnections[ABHBall][2]:GiveTask(ABHBall.Touched:Connect(function(otherPart)		
-		-- Ignora toque em redes (para bola não atravessar)
 		if otherPart.Name == "Nets" then
 			ABHBall.AssemblyLinearVelocity = Vector3.zero
 			ABHBall.AssemblyAngularVelocity = Vector3.zero
 			return
 		end
 
-		-- Verifica se foi um jogador que tocou
 		local player = Players:GetPlayerFromCharacter(otherPart.Parent :: Model)
 		if not player then
 			return
 		end
-
-		-- Verifica ping máximo permitido
 		local playerPing = (player.leaderstats.Ping :: NumberValue).Value
 		if playerPing >= SharedAttributes:MaxPing() then
 			return
 		end
 
-		-- Raposa: não permite pegar bola se partida estiver pausada
+		--Raposa adicionou
 		if MATCH_PAUSED.Value then
 			return
 		end
+		--Fim Raposa
 
 		ABHBall.Anchored = false
 
-		-- Validações de estado da bola
 		if not informationFolder.CanTackle.Value then
 			return
 		end
 		if informationFolder.CurrentPlayerOnBall.Value then
 			return
 		end
-		if ABHBall:GetAttribute("Saved") == true then
+		if ABHBall:GetAttribute("Saved")== true then
 			return
 		end
 
-		-- Validações do jogador
 		local character = player.Character
 		if not character then
 			return
@@ -398,12 +304,21 @@ function HandleBallTouch(ABHBall: SharedTypes.ABHBallInstance)
 		if not humanoid or humanoid.Health <= 0 then
 			return
 		end
+		
+		local humanoidRootPart = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not humanoidRootPart then
+			return
+		end
 
 		if character:FindFirstChild("BallOwnership") then 
 			return
 		end
+		
+		-- Bloqueia pickup se o jogador estiver com KeeperTool equipada
+		if character:FindFirstChild("KeeperTool") then
+			return
+		end
 
-		-- Verifica ForceField (proteção de cobrança)
 		local forceField = ABHBall:FindFirstChild("ForceField")
 		if forceField then
 			local takerUserId = forceField:GetAttribute("TakerUserId")
@@ -415,7 +330,6 @@ function HandleBallTouch(ABHBall: SharedTypes.ABHBallInstance)
 			end
 		end
 
-		-- Verifica cooldown de interação
 		local playerCooldown = ballPlayersCooldown[ABHBall][player.UserId] :: number?
 		if playerCooldown then
 			local lastInteraction = os.clock() - playerCooldown
@@ -424,45 +338,32 @@ function HandleBallTouch(ABHBall: SharedTypes.ABHBallInstance)
 			end
 		end
 
-		-- Raposa: Detecção de passback (recuo para goleiro)
 		if MATCH_VALUE.Value then
-			for i, v in HOME_AREA:GetTouchingParts() do
-				local p = Players:GetPlayerFromCharacter(v.Parent)
-				if p and p.UserId == player.UserId then
-					if lastThrow and lastThrow ~= informationFolder.CurrentPlayerOnBall.Value then
-						if (player.Team and player.Team.Name == "-Home Goalkeeper" and lastThrow.Value and lastThrow.Value.Team and lastThrow.Value.Team.Name:find("Home")) then
-							for u, w in Teams.Officials:GetPlayers() do
-								LEAGUE_EVENT:FireClient(w, "POSSIBLE_PASSBACK", true)
-							end
-							break
+			if lastThrow.Value and lastThrow.Value ~= player then
+				if Utils:IsPointInHomeArea(humanoidRootPart.Position) then
+					if (player.Team and player.Team.Name == "-Home Goalkeeper" and lastThrow.Value and lastThrow.Value.Team and lastThrow.Value.Team.Name:find("Home")) then
+						for u, w in Teams.Officials:GetPlayers() do
+							LEAGUE_EVENT:FireClient(w, "POSSIBLE_PASSBACK", true)
 						end
 					end
 				end
-			end
-
-			for i, v in AWAY_AREA:GetTouchingParts() do
-				local p = Players:GetPlayerFromCharacter(v.Parent)
-				if p and p.UserId == player.UserId then
-					if lastThrow and lastThrow ~= informationFolder.CurrentPlayerOnBall.Value then
-						if (player.Team and player.Team.Name == "-Away Goalkeeper" and lastThrow.Value and lastThrow.Value.Team and lastThrow.Value.Team.Name:find("Away")) then
-							for u, w in Teams.Officials:GetPlayers() do
-								LEAGUE_EVENT:FireClient(w, "POSSIBLE_PASSBACK", false)
-							end
-							break
-						end
+			elseif Utils:IsPointInAwayArea(humanoidRootPart.Position) then
+				if (player.Team and player.Team.Name == "-Away Goalkeeper" and lastThrow.Value and lastThrow.Value.Team and lastThrow.Value.Team.Name:find("Away")) then
+					for u, w in Teams.Officials:GetPlayers() do
+						LEAGUE_EVENT:FireClient(w, "POSSIBLE_PASSBACK", false)
 					end
 				end
 			end
 		end
 
-		-- Remove força vertical existente
 		local vectorForce = ABHBall:FindFirstChild("VerticalForce") :: VectorForce
 		if vectorForce then
 			vectorForce:Destroy()
 		end
 		informationFolder.CanTackle.Value = false
 
-		-- Raposa: Registro de estatísticas de passe
+		--Raposa adicionou
+		-- Prefer the persisted LastThrowUserId attribute (more robust across timing) and fall back to Information.LastThrow
 		local lastThrowUserId = ABHBall:GetAttribute("LastThrowUserId") or (informationFolder.LastThrow.Value and informationFolder.LastThrow.Value.UserId)
 		local lastThrower = nil
 		if lastThrowUserId then
@@ -470,47 +371,41 @@ function HandleBallTouch(ABHBall: SharedTypes.ABHBallInstance)
 		else
 			lastThrower = informationFolder.LastThrow.Value
 		end
-
-		-- Verificação de tempo (evita atribuir passes antigos)
+		-- Optional freshness check (avoid attributing very old throws)
 		local lastThrowTime = ABHBall:GetAttribute("LastThrowTime")
 		if lastThrowTime and (os.time() - lastThrowTime) > 15 then
 			lastThrower = nil
 		end
-
-		-- Registra passe completo ou turnover
+		-- Only attribute pass/turnover if we actually have a lastThrower and it's not the same player
+		-- Raposa: Now even shots count towards pass completion/turnover (as requested)
 		if lastThrower and lastThrower ~= player then
-			if IsSameTeam(lastThrower, player) then
+			if TeamUtils.areSameTeam(lastThrower, player) then
 				GameStatistics.RecordEvent(lastThrower, "PassComplete")
 			else
-				GameStatistics.RecordEvent(lastThrower, "PassFailed")
+				GameStatistics.RecordEvent(lastThrower, "PassFailed") -- Raposa: Count as failed pass
 				GameStatistics.RecordEvent(lastThrower, "Turnover")
 			end
 		end
 
-		-- Goleiro pegando chute = save
 		if player.Team and player.Team.Name:find("Goalkeeper") then
-			local wasShot = ABHBall:GetAttribute("IsShot") or ABHBall:GetAttribute("IsSOG")
 			if wasShot then
+				-- Fix Race Condition #C4: Remover lógica de reset duplicada
 				ABHBall:SetAttribute("IsSOG", true)
 				ABHBall:SetAttribute("Saved", true)
-				GameStatistics.RecordEvent(player, "Save")
+				
 				local shooter = ABHBall.Information.LastThrow.Value :: Player?
 				if shooter and shooter ~= player then
+					GameStatistics.RecordEvent(player, "Save") -- Moved inside to prevent double counting on touch
 					GameStatistics.RecordEvent(shooter, "SavedShot")
 				end
-				task.delay(0.5, function()
-					ABHBall:SetAttribute("Saved", false)
-				end)
 			end
 		end
+		--Fim Raposa
 
-		-- Aplica posse da bola
 		ABHBall.AssemblyLinearVelocity = Vector3.zero
 		ABHBall.AssemblyAngularVelocity = Vector3.zero
 		ApplyBallWeld(ABHBall, player)
 		informationFolder.CurrentPlayerOnBall.Value = player
-
-		-- Aguarda cooldown de tackle
 		task.wait(TACKLE_COOLDOWN)
 		if not ABHBall:IsDescendantOf(BALLS_FOLDER) then
 			return
@@ -519,11 +414,6 @@ function HandleBallTouch(ABHBall: SharedTypes.ABHBallInstance)
 	end))
 end
 
---// ============================================================================
---// SETOR: Handler de Timer de Posse
---// ============================================================================
-
---- Gerencia o timer de posse e violações de tempo
 function HandleBallTimer(ABHBall: SharedTypes.ABHBallInstance)
 	local informationFolder = ABHBall.Information
 	local currentPlayerOnBall = informationFolder.CurrentPlayerOnBall
@@ -534,21 +424,23 @@ function HandleBallTimer(ABHBall: SharedTypes.ABHBallInstance)
 	ballConnections[ABHBall][3]:GiveTask(currentPlayerOnBall:GetPropertyChangedSignal("Value"):Connect(function()
 		local oldPlayerOnBall = currentPlayerOnBall.Value
 
-		-- Raposa: Atualiza tag de nome na bola
+		--Raposa adicionou
 		if currentPlayerOnBall.Value then
 			GameStatistics.RecordEvent(currentPlayerOnBall.Value, "PossessionStart")
+			-- Atualizar name tag
 			local tag = ABHBall:FindFirstChild("SpawnerTag")
 			if tag and tag:FindFirstChildOfClass("TextLabel") then
 				tag:FindFirstChildOfClass("TextLabel").Text = currentPlayerOnBall.Value.Name
 			end
 		else
+			-- Limpar name tag ao soltar/perder a bola
 			local tag = ABHBall:FindFirstChild("SpawnerTag")
 			if tag and tag:FindFirstChildOfClass("TextLabel") then
 				tag:FindFirstChildOfClass("TextLabel").Text = ""
 			end
 		end
+		--Fim Raposa
 
-		-- Limpa thread anterior
 		if not currentPlayerOnBall.Value then 
 			if thread ~= nil then
 				coroutine.close(thread)
@@ -561,7 +453,6 @@ function HandleBallTimer(ABHBall: SharedTypes.ABHBallInstance)
 			coroutine.close(thread)
 		end
 
-		-- Caso especial: jogador pegou a própria bola de volta (violação)
 		if currentPlayerOnBall.Value == lastThrow.Value and lastPlayerOnBall.Value == lastThrow.Value then
 			local lastPosition = ABHBall.Position
 			ABHBall.Timer.Seconds.TextColor3 = Color3.fromRGB(255, 0, 0)
@@ -577,7 +468,7 @@ function HandleBallTimer(ABHBall: SharedTypes.ABHBallInstance)
 					end
 				end
 
-				-- Raposa: aciona falta por violação
+				--Raposa: Acionar falta e erro na estatistica
 				local playerTeamName = playerInstance.Team.Name
 				local isGK = playerTeamName:find("Goalkeeper")
 				local isHome = playerTeamName:find("Home")
@@ -593,7 +484,6 @@ function HandleBallTimer(ABHBall: SharedTypes.ABHBallInstance)
 				end
 			end
 
-			-- Destroi bola com efeito visual
 			currentPlayerOnBall.Value = nil
 			ABHBall.AssemblyLinearVelocity = Vector3.zero
 			ABHBall.AssemblyAngularVelocity = Vector3.zero
@@ -617,28 +507,26 @@ function HandleBallTimer(ABHBall: SharedTypes.ABHBallInstance)
 			return
 		end
 
-		-- Reseta timer para novo jogador
 		if currentPlayerOnBall.Value then
 			ABHBall.Timer.Seconds.TextColor3 = Color3.fromRGB(255, 255, 255)
 			informationFolder.Timer.Value = DEFAULT_BALL_TIMER
 			ABHBall.Timer.Seconds.Text = string.format("%.1f", informationFolder.Timer.Value)
 		end
 
-		-- Thread de contagem regressiva
 		thread = coroutine.create(function()		
 			while currentPlayerOnBall.Value and ABHBall:IsDescendantOf(BALLS_FOLDER) do
 				task.wait(0.1)
-
-				-- Raposa: registra tempo de posse
+				--Raposa adicionou
 				if currentPlayerOnBall.Value then
 					GameStatistics.RecordEvent(currentPlayerOnBall.Value, "Possession", 0.1)
 				end
+				--Fim Raposa
 
 				local playerOnBall = currentPlayerOnBall.Value
 				local isGK = playerOnBall and playerOnBall.Team.Name:find("Goalkeeper")
 				local isImmune = ABHBall:FindFirstChild("ForceField") or ABHBall:FindFirstChild("RefereeImmunity") or ABHBall:GetAttribute("Saved") == true
 
-				-- Goleiro conta timer mesmo com imunidade
+				-- O goleiro deve contar o countdown mesmo se tiver imunidade (ForceField), conforme pedido.
 				if BALL_TIMER.Value and (not isImmune or isGK) then
 					if informationFolder.Timer.Value <= 0 then
 						break
@@ -657,7 +545,6 @@ function HandleBallTimer(ABHBall: SharedTypes.ABHBallInstance)
 				return
 			end
 
-			-- Timer expirou: violação de tempo
 			if informationFolder.Timer.Value <= 0 and currentPlayerOnBall.Value then
 				local lastPosition = ABHBall.Position
 
@@ -673,7 +560,7 @@ function HandleBallTimer(ABHBall: SharedTypes.ABHBallInstance)
 					end
 				end
 
-				-- Raposa: Aciona infração por tempo expirado
+				-- Raposa: Acionar infracao por tempo expirado
 				local playerTeamName = playerInstance.Team.Name
 				local isGK = playerTeamName:find("Goalkeeper")
 				local isHome = playerTeamName:find("Home")
@@ -688,7 +575,6 @@ function HandleBallTimer(ABHBall: SharedTypes.ABHBallInstance)
 					GameStatistics.RecordEvent(playerInstance, "Turnover")
 				end
 
-				-- Efeito visual de violação
 				currentPlayerOnBall.Value = nil
 				ABHBall.AssemblyLinearVelocity = Vector3.zero
 				ABHBall.AssemblyAngularVelocity = Vector3.zero
@@ -700,7 +586,9 @@ function HandleBallTimer(ABHBall: SharedTypes.ABHBallInstance)
 				ABHBall.Anchored = true
 				ABHBall.CanCollide = false
 				ABHBall.Material = Enum.Material.Neon
+
 				ABHBall.Color = playerInstance.TeamColor.Color
+
 				ABHBall.TextureID = ""
 				Debris:AddItem(ABHBall, 3)
 			end
@@ -710,25 +598,19 @@ function HandleBallTimer(ABHBall: SharedTypes.ABHBallInstance)
 	end))
 end
 
---// ============================================================================
---// SETOR: Handler de Resistência do Ar (Deprecated)
---// ============================================================================
 
---- Lógica movida para loop central Stepped para performance
+
 function HandleBallAirResistance(ABHBall: SharedTypes.ABHBallInstance)
 	-- Logic moved to central Stepped loop for performance
 end
 
---// ============================================================================
---// SETOR: Cálculo de Força de Arremesso
---// ============================================================================
 
---- Calcula a posição e velocidade do arremesso
 function CalculatePower(startingCFrame: CFrame, directionData: SharedTypes.DirectionData, power: number, player: Player)
 	local calculatedPower = math.sqrt(power / 100) * POWER_MULTIPLIER
 	local hrp = player.Character.HumanoidRootPart
 	local fixedPower = FixedPower(directionData.mouseDirection, directionData.mousePosition, directionData.humanoidRootPartDirection, calculatedPower, hrp.Position, player)
 	calculatedPower = fixedPower
+
 
 	local direction = VectorLib:VectorLibToVector3(directionData.mouseDirection)
 
@@ -740,11 +622,6 @@ function CalculatePower(startingCFrame: CFrame, directionData: SharedTypes.Direc
 	}
 end
 
---// ============================================================================
---// SETOR: Funções Públicas do Módulo
---// ============================================================================
-
---- Transforma bola em "fantasma" (efeito visual de destruição)
 function ABHBall:Ghostball(ballInstance: SharedTypes.ABHBallInstance)
 	local ghost = ballInstance:Clone()
 	ballInstance:Destroy()
@@ -762,7 +639,6 @@ function ABHBall:Ghostball(ballInstance: SharedTypes.ABHBallInstance)
 	Debris:AddItem(ghost, 3)
 end
 
---- Aplica força vertical para simular arco no arremesso
 function ABHBall:ApplyVerticalForce(ABHBall: SharedTypes.ABHBallInstance)
 	local forceMaid = Maid.new()
 	local yForce = ABHBall:GetMass() * workspace.Gravity * 0.75
@@ -781,19 +657,35 @@ function ABHBall:ApplyVerticalForce(ABHBall: SharedTypes.ABHBallInstance)
 	vectorForce.ApplyAtCenterOfMass = true
 	vectorForce.Parent = ABHBall
 
-	-- Remove força quando bola toca algo
 	task.delay(0.125, function()
 		forceMaid:GiveTask(ABHBall.Touched:Connect(function(touchingPart)
-			-- Ignora superfícies de jogo
-			if touchingPart.Name == "RealField" then return end
-			if touchingPart.Name == "FieldGrass" then return end
-			if touchingPart.Name == "ABHBall" then return end
-			if touchingPart.Name == "ForceField" then return end
-			if touchingPart.Name == "Area" or touchingPart.Name == "HomeArea" or touchingPart.Name == "AwayArea" then return end
-			if touchingPart.Name == "Grass" then return end
-			if touchingPart.Name == "Barrier" then return end
-			if Players:GetPlayerFromCharacter(touchingPart.Parent :: Model) then return end
-			if touchingPart.Name == "Handle" then return end
+			if touchingPart.Name == "RealField" then
+				return
+			end
+			if touchingPart.Name == "FieldGrass" then 
+				return
+			end
+			if touchingPart.Name == "ABHBall" then
+				return
+			end
+			if touchingPart.Name == "ForceField" then
+				return
+			end
+			if touchingPart.Name == "Area" or touchingPart.Name == "HomeArea" or touchingPart.Name == "AwayArea" then
+				return
+			end
+			if touchingPart.Name == "Grass" then
+				return
+			end
+			if touchingPart.Name == "Barrier" then
+				return
+			end
+			if Players:GetPlayerFromCharacter(touchingPart.Parent :: Model) then
+				return
+			end
+			if touchingPart.Name == "Handle" then
+				return
+			end
 
 			vectorForce:Destroy()
 			forceMaid:Destroy()
@@ -801,7 +693,6 @@ function ABHBall:ApplyVerticalForce(ABHBall: SharedTypes.ABHBallInstance)
 	end)
 end
 
---- Reduz velocidade quando bola toca o campo
 function BallVelocityReducer(ABHBall: SharedTypes.ABHBallInstance)
 	ballConnections[ABHBall][5]:GiveTask(ABHBall.Touched:Connect(function(child)
 		if not ABHBall:IsDescendantOf(workspace) then
@@ -818,13 +709,15 @@ function BallVelocityReducer(ABHBall: SharedTypes.ABHBallInstance)
 	end))
 end
 
---// ============================================================================
---// SETOR: Criação de Bola
---// ============================================================================
-
---- Cria uma nova bola no jogo
 function ABHBall:Create(cframe: CFrame, spawner: Player?)	
 	local protectConnection = Janitor.new()
+
+	-- Raposa: Regra de Bola Unica durante partida
+	if MATCH_VALUE.Value then
+		for _, existingBall in ipairs(BALLS_FOLDER:GetChildren()) do
+			pcall(function() existingBall:Destroy() end)
+		end
+	end
 
 	local instance = BALL_INSTANCE:Clone()
 	instance.Name = HttpService:GenerateGUID()
@@ -850,27 +743,31 @@ function ABHBall:Create(cframe: CFrame, spawner: Player?)
 		nameTag.Parent = instance
 	end
 
-	nameTag.StudsOffset = Vector3.new(0, 1.2, 0)
-	nameTag.MaxDistance = 50
+	nameTag.StudsOffset = Vector3.new(0, 1.2, 0) -- Abaixo dos segundos (2.0)
+	nameTag.MaxDistance = 50 -- Nao visto de longe
 	local label = nameTag:FindFirstChildOfClass("TextLabel")
 	if label then
-		label.Text = if spawner then spawner.Name else ""
+		-- Raposa: Remover nome se for partida
+		if MATCH_VALUE.Value then
+			label.Text = ""
+		else
+			label.Text = if spawner then spawner.Name else ""
+		end
 	end
 
 	if instance:FindFirstChild("Timer") then
-		instance.Timer.StudsOffset = Vector3.new(0, 2.0, 0)
-		instance.Timer.MaxDistance = 50
+		instance.Timer.StudsOffset = Vector3.new(0, 2.0, 0) -- Segundos em cima
+		instance.Timer.MaxDistance = 50 -- Nao visto de longe
 	end
 
-	-- Inicializa estados
 	playersPositions[instance] = {}
 	ballPlayersCooldown[instance] = {}
 	ballMotors6D[instance] = nil
 	instance:SetAttribute("Saved", false)
 	instance.Information.CanTackle.Value = true
-	instance.CanCollide = true
+	instance.CanCollide = true -- Raposa: Garantir colisao ao criar
 
-	-- Garante que o Timer existe
+	-- Raposa: Garantir que o Timer existe na pasta Information
 	if not instance.Information:FindFirstChild("Timer") then
 		local timerValue = Instance.new("NumberValue")
 		timerValue.Name = "Timer"
@@ -878,8 +775,8 @@ function ABHBall:Create(cframe: CFrame, spawner: Player?)
 		timerValue.Parent = instance.Information
 	end
 
-	-- Inicializa conexões
 	coroutine.wrap(InitConnection)(instance)
+
 	coroutine.wrap(HandleCollision)(instance)
 	coroutine.wrap(HandleBallTouch)(instance)
 	coroutine.wrap(HandleBallAirResistance)(instance)
@@ -888,7 +785,6 @@ function ABHBall:Create(cframe: CFrame, spawner: Player?)
 
 	instance.Information.Timer.Value = DEFAULT_BALL_TIMER
 
-	-- Cleanup ao destruir
 	instance.Destroying:Connect(function()
 		for _, connection in ballConnections[instance] do
 			connection:DoCleaning()
@@ -905,7 +801,6 @@ function ABHBall:Create(cframe: CFrame, spawner: Player?)
 		ballConnections[instance] = nil
 	end)
 
-	-- ForceField: proteção de cobrança
 	local forceField = instance.ForceField
 	forceField:SetAttribute("TakerUserId", 0)
 	protectConnection:LinkToInstance(forceField)
@@ -922,7 +817,7 @@ function ABHBall:Create(cframe: CFrame, spawner: Player?)
 			return
 		end
 
-		-- Raposa: Anular velocidade ao tocar no ForceField
+		-- Raposa: Anular velocidade ao tocar no ForceField (levar TP)
 		primaryPart.AssemblyLinearVelocity = Vector3.zero
 		primaryPart.AssemblyAngularVelocity = Vector3.zero
 
@@ -936,7 +831,7 @@ function ABHBall:Create(cframe: CFrame, spawner: Player?)
 
 		protectConnection:Add(linearVelocity, "Destroy")
 
-		-- Raposa: Travar movimento do cobrador
+		-- Raposa: Travar pulo e caminhada
 		local humanoid = character:FindFirstChildOfClass("Humanoid")
 		if humanoid then
 			local oldJumpPower = humanoid.JumpPower
@@ -954,6 +849,7 @@ function ABHBall:Create(cframe: CFrame, spawner: Player?)
 				if shouldApply then
 					if not currentlyApplied then
 						currentlyApplied = true
+						-- Salva os valores atuais antes de zerar
 						oldJumpPower = humanoid.JumpPower
 						oldJumpHeight = humanoid.JumpHeight
 						oldWalkSpeed = humanoid.WalkSpeed
@@ -966,6 +862,7 @@ function ABHBall:Create(cframe: CFrame, spawner: Player?)
 				else
 					if currentlyApplied then
 						currentlyApplied = false
+						-- Restaura os valores originais
 						humanoid.JumpPower = oldJumpPower
 						humanoid.JumpHeight = oldJumpHeight
 						humanoid.WalkSpeed = oldWalkSpeed
@@ -1000,7 +897,6 @@ function ABHBall:Create(cframe: CFrame, spawner: Player?)
 		end
 	end), "Disconnect")
 
-	-- Bola pausada se partida pausada
 	if MATCH_PAUSED.Value then
 		instance.Anchored = true
 		pcall(function() instance.CanCollide = false end)
@@ -1012,32 +908,27 @@ function ABHBall:Create(cframe: CFrame, spawner: Player?)
 	return instance
 end
 
---// ============================================================================
---// SETOR: Arremesso de Bola
---// ============================================================================
-
---- Executa o arremesso da bola
 function ABHBall:Throw(player: Player, instance: SharedTypes.ABHBallInstance, directionData: SharedTypes.DirectionData, power: number)
 	local data = CalculatePower(instance.CFrame, directionData, power, player)
 	local releasePosition = data[1] :: CFrame
 	local velocity = data[2] :: Vector3
 
-	-- Compensação de lag: avança posição inicial baseado no ping
+	-- Lag Compensation: Advance the ball starting position based on player ping
 	local playerPing = 0
 	pcall(function()
-		playerPing = player.leaderstats.Ping.Value / 1000
+		playerPing = player.leaderstats.Ping.Value / 1000 -- Convert ms to seconds
 	end)
 
+	-- Limited lag compensation to avoid clipping through distant walls
 	local leadTime = math.min(playerPing, 0.15) 
 	local advancedPosition = releasePosition.Position + (velocity * leadTime)
 
-	-- Só avança se não há obstáculo
+	-- We only advance if it doesn't hit anything immediately
 	local leadRay = workspace:Raycast(releasePosition.Position, velocity * leadTime, RaycastParams.new())
 	if not leadRay then
 		releasePosition = releasePosition - releasePosition.Position + advancedPosition
 	end
 
-	-- Remove Motor6D de posse
 	if ballMotors6D[instance] then
 		ballMotors6D[instance]:Destroy()
 		ballMotors6D[instance] = nil
@@ -1051,7 +942,6 @@ function ABHBall:Throw(player: Player, instance: SharedTypes.ABHBallInstance, di
 		end
 	end
 
-	-- Remove proteções
 	if instance:FindFirstChild("RefereeImmunity") then
 		(instance.RefereeImmunity :: Instance):Destroy()
 	end
@@ -1059,13 +949,12 @@ function ABHBall:Throw(player: Player, instance: SharedTypes.ABHBallInstance, di
 		(instance.ForceField):Destroy()
 	end
 
-	-- Notifica watchdog da liga
+	-- Raposa: Atualiza o ultimo jogador que atirou para o watchdog do ABHLeague
 	ServerEvents.League:Fire("PLAYER_THROW", player)
 
-	-- Raposa: Todo arremesso conta como tentativa de passe
+	--Raposa adicionou: Every throw counts as a pass attempt
 	GameStatistics.RecordEvent(player, "PassAttempt")
 
-	-- Detecção de chute ao gol
 	local raycastParams = RaycastParams.new()
 	raycastParams.FilterDescendantsInstances = {HOME_GLT, AWAY_GLT}
 	raycastParams.FilterType = Enum.RaycastFilterType.Include
@@ -1073,7 +962,7 @@ function ABHBall:Throw(player: Player, instance: SharedTypes.ABHBallInstance, di
 	local result = workspace:Raycast(releasePosition.Position, vector.normalize(directionData.mouseDirection) * 77, raycastParams)
 	local multiplier = 1
 
-	-- Verifica se arremesso mira no gol adversário
+	-- Determine if the throw was aimed at the opponent's goal (shot attempt)
 	local isAimedAtGoal = false
 	local playerTeamName = (player.Team and player.Team.Name) or ""
 	local goalPos = nil
@@ -1088,32 +977,32 @@ function ABHBall:Throw(player: Player, instance: SharedTypes.ABHBallInstance, di
 		if toGoal.Magnitude > 0 then
 			local toGoalDir = toGoal.Unit
 			local dot = aimDir:Dot(toGoalDir)
+			-- dot threshold 0.6 ~= ~53 degrees; adjust if needed
 			if dot >= 0.6 then
 				isAimedAtGoal = true
 			end
 		end
 	end
 
-	-- Classifica arremesso
 	if result then
-		-- Trajetória cruza o gol (Shot on Goal)
+		-- Ball path intersects goal (Shot on Goal)
 		instance:SetAttribute("IsSOG", true)
 		instance:SetAttribute("IsShot", true)
 		local markingQtd = countOpponentsInRadius(player, character.HumanoidRootPart.Position)
 		multiplier = throwPowerTransformation(markingQtd)
 	elseif isAimedAtGoal then
-		-- Mirou no gol mas não cruzou (chute pra fora)
+		-- Aimed at goal but didn't intersect GLT (wide shot) -> consider as shot attempt
 		instance:SetAttribute("IsSOG", false)
 		instance:SetAttribute("IsShot", true)
 	else
-		-- Passe normal
+		-- Regular pass
 		instance:SetAttribute("IsSOG", false)
 		instance:SetAttribute("IsShot", false)
 	end
+	--Fim Raposa
 
 	instance.CFrame = releasePosition
-
-	-- Correção: Garantir que bola não spawne embaixo do chào
+	-- Correcao Raposa: Garantir que a bola nao seja solta embaixo do chao
 	local rayParams = RaycastParams.new()
 	rayParams.FilterType = Enum.RaycastFilterType.Exclude
 	rayParams.FilterDescendantsInstances = {BALLS_FOLDER, player.Character}
@@ -1126,62 +1015,47 @@ function ABHBall:Throw(player: Player, instance: SharedTypes.ABHBallInstance, di
 		end
 	end
 
-	-- Restaura CanCollide
+	-- Restore original CanCollide state when throwing
 	local originalCanCollide = instance:GetAttribute("OriginalCanCollide")
 	if originalCanCollide ~= nil then
 		instance.CanCollide = originalCanCollide
 		instance:SetAttribute("OriginalCanCollide", nil)
 	else
-		instance.CanCollide = true
+		instance.CanCollide = true -- Default to enabled if not set
 	end
 
 	ABHBall:ApplyVerticalForce(instance)
 
-	-- Atualiza informações de último arremesso
 	ballPlayersCooldown[instance][player.UserId] = os.clock()
 	if instance.Information.LastThrow.Value ~= instance.Information.LastLastThrow.Value then
 		instance.Information.LastLastThrow.Value = instance.Information.LastThrow.Value
 	end
 	instance.Information.LastThrow.Value = player
-
-	-- Persiste ID do último arremessador
+	-- Persist last throw user id and timestamp on the physical ball for robust pass detection
 	pcall(function()
 		instance:SetAttribute("LastThrowUserId", player.UserId)
 		instance:SetAttribute("LastThrowTime", os.time())
 	end)
-
 	instance.Information.LastPlayerOnBall.Value = instance.Information.CurrentPlayerOnBall.Value
 	instance.Information.CurrentPlayerOnBall.Value = nil
 	instance.AssemblyAngularVelocity = Vector3.zero
-	instance.AssemblyLinearVelocity = velocity * multiplier
+	instance.AssemblyLinearVelocity = velocity * multiplier --Adicionado * multiplier
 end
 
---// ============================================================================
---// SETOR: Utilitários de Bola
---// ============================================================================
-
---- Remove todas as bolas do jogo
 function ABHBall:DoCleaning()
 	for _, instance in BALLS_FOLDER:GetChildren() do
 		instance:Destroy()
 	end
 end
 
---- Obtém cooldown de interação com GLT
 function ABHBall:GetGLTCooldown(instance: SharedTypes.ABHBallInstance)
 	return gltInteractionCooldown[instance]
 end
 
---- Define cooldown de interação com GLT
 function ABHBall:SetGLTCooldown(instance: SharedTypes.ABHBallInstance, state: boolean)
 	gltInteractionCooldown[instance] = state
 end
 
---// ============================================================================
---// SETOR: Save de Goleiro
---// ============================================================================
-
---- Processa save do goleiro (defesa manual)
 function ABHBall:HandleGoalkeeperSave(instance: SharedTypes.ABHBallInstance, cframe: CFrame, player: Player)
 	if not instance:FindFirstChild("Information") then
 		return
@@ -1194,7 +1068,7 @@ function ABHBall:HandleGoalkeeperSave(instance: SharedTypes.ABHBallInstance, cfr
 		return
 	end
 
-	-- Raposa: Registra save nas estatísticas
+	--Raposa adicionou
 	local wasShot = instance:GetAttribute("IsShot") or instance:GetAttribute("IsSOG")
 	if wasShot then
 		instance:SetAttribute("IsSOG", true)
@@ -1202,25 +1076,24 @@ function ABHBall:HandleGoalkeeperSave(instance: SharedTypes.ABHBallInstance, cfr
 		GameStatistics.RecordEvent(player, "Save")
 		local shooter = instance.Information.LastThrow.Value :: Player?
 		if shooter and shooter ~= player then
+			-- SavedShot (increment SavedShots) and also count as SOG (Shots + SOG)
 			GameStatistics.RecordEvent(shooter, "SavedShot")
 			GameStatistics.RecordEvent(shooter, "SOG")
 		end
 	end
 	ABHBall:SetGLTCooldown(instance, true)
-
-	-- Remove força vertical existente
+	--Fim Raposa	
 	local vectorForce = instance:FindFirstChild("VectorForce")
 	if vectorForce then
 		vectorForce:Destroy()
 	end
 
-	-- Calcula nova trajetória do save
 	local velocity = instance.AssemblyLinearVelocity :: Vector3
-	local multiplier = math.max(instance.AssemblyLinearVelocity.Magnitude, 30)
+	local multiplier = math.clamp(instance.AssemblyLinearVelocity.Magnitude, 15, 90)
 	local ballVelocity = cframe.LookVector.Unit * multiplier
 
 	local releasePosition = cframe * RELEASE_OFFSET
-	local velocity = (ballVelocity * SAVE_FACTOR) + Vector3.new(0, VERTICAL_SAVE_LINEAR, 0)
+	local velocity = ballVelocity + Vector3.new(0, VERTICAL_SAVE_LINEAR, 0)
 	ABHBall:ApplyVerticalForce(instance)
 	instance.CFrame = releasePosition
 	instance.AssemblyAngularVelocity = Vector3.new()
@@ -1230,29 +1103,28 @@ function ABHBall:HandleGoalkeeperSave(instance: SharedTypes.ABHBallInstance, cfr
 		instance.Information.LastLastThrow.Value = instance.Information.LastThrow.Value
 	end
 	instance.Information.LastThrow.Value = player
-
-	task.wait(0.5)
-	instance:SetAttribute("Saved", false)
-	ABHBall:SetGLTCooldown(instance, false)
+	
+	-- Segurança: Garantir reset seguro do atributo Saved e cooldown
+	task.delay(0.5, function()
+		if instance and instance.Parent then
+			instance:SetAttribute("Saved", false)
+			ABHBall:SetGLTCooldown(instance, false)
+		end
+	end)
 end
 
---// ============================================================================
---// SETOR: Tackle (Roubo de Bola)
---// ============================================================================
-
---- Processa tackle de um jogador
 function ABHBall:HandleTackle(instance: SharedTypes.ABHBallInstance, player: Player)	
-	-- Raposa: não permite tackle se partida pausada
+	--Raposa adicionou
 	if MATCH_PAUSED.Value then
 		return
 	end
+	--Fim Raposa
 
 	local character = player.Character
 	if not character then
 		return
 	end
 
-	-- Verifica cooldown
 	local playerCooldown = ballPlayersCooldown[instance][player.UserId] :: number?
 	if playerCooldown then
 		local lastInteraction = os.clock() - playerCooldown
@@ -1261,30 +1133,25 @@ function ABHBall:HandleTackle(instance: SharedTypes.ABHBallInstance, player: Pla
 		end
 	end
 
-	-- não pode tacklear se já tem bola
 	local ballOwnership = character:FindFirstChild("BallOwnership") :: Motor6D
 	if ballOwnership then
 		return
 	end
 
-	-- Verifica se tackle está habilitado
 	local canTackle = instance.Information.CanTackle.Value 
 	if not canTackle then
 		return
 	end
 
-	-- não pode tacklear bola protegida
 	if instance:FindFirstChild("ForceField") then
 		return
 	end
 
-	-- Verifica ping máximo
 	local playerPing = (player.leaderstats.Ping :: NumberValue).Value
 	if playerPing >= SharedAttributes:MaxPing() then
 		return
 	end
 
-	-- Verifica ForceField de cobrança
 	local forceField = instance:FindFirstChild("ForceField")
 	if forceField then
 		local isHome = forceField:GetAttribute("isHome")
@@ -1298,14 +1165,12 @@ function ABHBall:HandleTackle(instance: SharedTypes.ABHBallInstance, player: Pla
 		end
 	end
 
-	-- Executa tackle
 	instance.Information.CanTackle.Value = false
 	local vectorForce = instance:FindFirstChild("VerticalForce")
 	if vectorForce then
 		vectorForce:Destroy()
 	end
 
-	-- Remove posse anterior
 	if ballMotors6D[instance] then
 		ballMotors6D[instance]:Destroy()
 		ballMotors6D[instance] = nil
@@ -1324,7 +1189,7 @@ function ABHBall:HandleTackle(instance: SharedTypes.ABHBallInstance, player: Pla
 
 	instance.Information.LastPlayerOnBall.Value = currentPlayer
 
-	-- Registra roubo se tomou de oponente
+	-- Record a steal if the ball was taken from an opposing player
 	if currentPlayer and currentPlayer ~= player then
 		local currentTeam = (currentPlayer.Team and currentPlayer.Team.Name) or ""
 		local playerTeam = (player.Team and player.Team.Name) or ""
@@ -1333,12 +1198,12 @@ function ABHBall:HandleTackle(instance: SharedTypes.ABHBallInstance, player: Pla
 			tookFromOpposingTeam = true
 		end
 		if tookFromOpposingTeam then
+			-- Count as a steal for tackler, and a turnover for the previous possessor
 			GameStatistics.RecordEvent(player, "Steal")
 			GameStatistics.RecordEvent(currentPlayer, "Turnover")
 		end
 	end
 
-	-- Aplica nova posse
 	instance.AssemblyLinearVelocity = Vector3.zero
 	instance.AssemblyAngularVelocity = Vector3.zero
 	ApplyBallWeld(instance, player)
@@ -1349,8 +1214,7 @@ function ABHBall:HandleTackle(instance: SharedTypes.ABHBallInstance, player: Pla
 	instance.Information.CanTackle.Value = true
 end
 
---// ============================================================================
---// SETOR: Retorno do Módulo
---// ============================================================================
-
 return ABHBall
+
+
+

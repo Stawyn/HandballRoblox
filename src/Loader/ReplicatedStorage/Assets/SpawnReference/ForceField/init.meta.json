@@ -1,0 +1,14 @@
+{
+  "className": "Part",
+  "properties": {
+    "BottomSurface": "Smooth",
+    "CanCollide": false,
+    "CanQuery": false,
+    "Color": [16, 42, 220],
+    "Massless": true,
+    "Material": "ForceField",
+    "Shape": "Ball",
+    "Size": [20, 20, 20],
+    "TopSurface": "Smooth"
+  }
+}

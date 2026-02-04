@@ -1,0 +1,8 @@
+{
+  "className": "Tool",
+  "properties": {
+    "CanBeDropped": false,
+    "RequiresHandle": false,
+    "TextureContent": "rbxassetid://131449828024475"
+  }
+}

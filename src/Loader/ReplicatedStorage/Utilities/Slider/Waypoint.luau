@@ -51,4 +51,3 @@ function Waypoint:Remove(): nil
 end
 
 return Waypoint
-

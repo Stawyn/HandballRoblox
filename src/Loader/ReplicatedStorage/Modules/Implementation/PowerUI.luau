@@ -1,47 +1,46 @@
 --[[
-	================================================================================
-	MÓDULO: PowerUI
-	================================================================================
-	
-	Descrição:
-		Controlador da interface visual de Força (Power) para arremessos.
-		Gerencia a barra de força e a barra de "Fixed Power".
-	
-	Dependências:
-		- Nenhuma (apenas serviços do Roblox)
-	
-	Autor: Sistema ABH
-	================================================================================
+    ================================================================================
+    MÓDULO: PowerUI
+    ================================================================================
+    Descrição: Interface de força de arremesso - barra de progresso visual.
+               Mostra força atual e força ajustada após multiplicadores.
+    
+    Funcionalidades:
+        - Barra de força com cores dinâmicas
+        - Indicador de força ajustada (fixedPower)
+        - Cores: Verde (>60%), Amarelo (25-60%), Vermelho (<25%)
+    
+    Autor: Sistema ABH
+    ================================================================================
 ]]
 
 --// ============================================================================
---// SETOR: Serviços
+--// SETOR: SERVIÇOS E DEPENDÊNCIAS
 --// ============================================================================
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 
 --// ============================================================================
---// SETOR: Constantes e Configurações
+--// SETOR: CONSTANTES
 --// ============================================================================
 
--- Cores da Barra de Força
+local TWEEN_INFO = TweenInfo.new(0.3, Enum.EasingStyle.Quart)
+
 local COLORS = {
-	FULL = Color3.fromRGB(46, 204, 113),    -- Verde Moderno
-	MEDIUM = Color3.fromRGB(241, 196, 15),  -- Amarelo Moderno
-	CRITICAL = Color3.fromRGB(231, 76, 60), -- Vermelho Moderno
-	FIXED_GAIN = Color3.fromRGB(46, 204, 113), -- Ganho de força fixa
-	FIXED_LOSS = Color3.fromRGB(192, 57, 43)   -- Perda de força fixa
+	FULL = Color3.fromRGB(46, 204, 113),      -- Verde moderno
+	MEDIUM = Color3.fromRGB(241, 196, 15),    -- Amarelo moderno
+	CRITICAL = Color3.fromRGB(231, 76, 60),   -- Vermelho moderno
+	FIXED_GAIN = Color3.fromRGB(46, 204, 113),
+	FIXED_LOSS = Color3.fromRGB(192, 57, 43)
 }
 
 --// ============================================================================
---// SETOR: Referências de UI
+--// SETOR: REFERÊNCIAS
 --// ============================================================================
 
 local localPlayer = Players.LocalPlayer :: Player
 local playerGui = localPlayer.PlayerGui
-
--- Busca estrutura da UI com timeouts generosos para garantir carregamento
 local indicatorUI = playerGui:WaitForChild("Indicator", math.huge)
 local mainUI = indicatorUI:WaitForChild("Main")
 local powerUI = mainUI:FindFirstChild("Power") :: Frame
@@ -49,16 +48,18 @@ local powerIndicatorUI = powerUI:FindFirstChild("Indicator") :: Frame
 local powerProgressUI = powerIndicatorUI:FindFirstChild("Progress") :: Frame
 local fixedPowerUI = powerProgressUI:FindFirstChild("FixedPower") :: Frame
 
+--// ============================================================================
+--// SETOR: MÓDULO
+--// ============================================================================
+
 local PowerUI = {}
 
 --// ============================================================================
---// SETOR: Funções Auxiliares de Estilo
+--// SETOR: FUNÇÕES AUXILIARES
 --// ============================================================================
 
---[[
-	Retorna a cor baseada na porcentagem de força.
-]]
-local function getPowerColor(percentage)
+--- Retorna cor baseada na porcentagem de força
+local function getPowerColor(percentage: number): Color3
 	if percentage > 0.6 then
 		return COLORS.FULL
 	elseif percentage > 0.25 then
@@ -68,24 +69,12 @@ local function getPowerColor(percentage)
 	end
 end
 
---[[
-	Aplica estilos (bordas, cantos arredondados) aos elementos da UI.
-	Executado uma vez na inicialização.
-]]
+--- Estiliza a UI de força
 local function stylizePower()
-	-- Helper para adicionar UICorner
 	local function addCorner(parent, radius)
 		local corner = parent:FindFirstChildOfClass("UICorner") or Instance.new("UICorner")
 		corner.CornerRadius = UDim.new(0, radius or 6)
 		corner.Parent = parent
-	end
-
-	-- Helper para adicionar UIStroke
-	local function addStroke(parent, color, thickness)
-		local stroke = parent:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke")
-		stroke.Color = color or Color3.fromRGB(60, 60, 70)
-		stroke.Thickness = thickness or 2
-		stroke.Parent = parent
 	end
 
 	if powerUI then
@@ -101,31 +90,25 @@ local function stylizePower()
 		addCorner(powerProgressUI, 4)
 	end
 end
-
--- Executa a estilização inicial em thread separada
 task.spawn(stylizePower)
 
 --// ============================================================================
---// SETOR: Funções Públicas
+--// SETOR: API PÚBLICA
 --// ============================================================================
 
---[[
-	Atualiza visualmente as barras de força e força fixa.
-	Utiliza Lerp para suavização, ideal para chamadas frequentes (Heartbeat).
-	
-	@param power number - Força atual (0-100)
-	@param fixedPower number - Força fixa/base (0-100)
-]]
+--- Atualiza a UI de força
+-- @param power number - Força atual (0-100)
+-- @param fixedPower number - Força ajustada após multiplicadores
 function PowerUI:UpdatePower(power: number, fixedPower: number)
 	local powerScale = power / 100
 	local fixedPowerScale = 1 - (fixedPower / 100)
 	local targetColor = getPowerColor(powerScale)
 
-	-- Interpolação Linear (Lerp) para suavizar o movimento da barra principal
+	-- Atualiza barra de força
 	powerProgressUI.Size = powerProgressUI.Size:Lerp(UDim2.fromScale(powerScale, 1), 0.3)
 	powerProgressUI.BackgroundColor3 = powerProgressUI.BackgroundColor3:Lerp(targetColor, 0.15)
 
-	-- Interpolação Linear (Lerp) para a barra de força fixa
+	-- Atualiza indicador de força ajustada
 	fixedPowerUI.Size = fixedPowerUI.Size:Lerp(UDim2.fromScale(fixedPowerScale, 1), 0.3)
 
 	local targetFixedColor = if fixedPowerScale < 0 then COLORS.FIXED_GAIN else COLORS.FIXED_LOSS
@@ -133,4 +116,3 @@ function PowerUI:UpdatePower(power: number, fixedPower: number)
 end
 
 return PowerUI
-

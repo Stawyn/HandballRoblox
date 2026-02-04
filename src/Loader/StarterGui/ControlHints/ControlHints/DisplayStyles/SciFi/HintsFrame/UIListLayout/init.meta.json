@@ -1,0 +1,10 @@
+{
+  "className": "UIListLayout",
+  "properties": {
+    "HorizontalAlignment": "Right",
+    "ItemLineAlignment": "End",
+    "Padding": [0, 4],
+    "SortOrder": "LayoutOrder",
+    "VerticalAlignment": "Bottom"
+  }
+}

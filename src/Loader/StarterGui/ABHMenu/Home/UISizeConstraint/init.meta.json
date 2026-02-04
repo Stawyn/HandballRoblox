@@ -1,0 +1,7 @@
+{
+  "className": "UISizeConstraint",
+  "properties": {
+    "MaxSize": [650, 450],
+    "MinSize": [250, 200]
+  }
+}

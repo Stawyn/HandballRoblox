@@ -37,6 +37,7 @@ function HandleRequestFT(ball: SharedTypes.ABHBallInstance)
 	end
 
 	local takeText = takeThrowTextLabel:Clone()
+	local mobButton = takeThrowTextLabel.MobileButton
 
 	local throwJanitor = Janitor.new()
 	throwJanitor:LinkToInstance(forceField)
@@ -51,6 +52,14 @@ function HandleRequestFT(ball: SharedTypes.ABHBallInstance)
 
 		LEAGUE_EVENT:FireServer("TEAM_FREE_THROW_CLIENT", ball.Name)
 	end), "Disconnect")
+	
+	if localPlayer:GetAttribute('Mobile') == true then
+		takeText.Text = "PRESSIONE AQUI PARA COBRAR"
+		mobButton.Visible = true
+		throwJanitor:Add(mobButton.MouseButton1Click:Connect(function()
+			LEAGUE_EVENT:FireServer("TEAM_FREE_THROW_CLIENT", ball.Name)
+		end), "Disconnect")
+	end
 	throwJanitor:Add(forceField:GetAttributeChangedSignal("Took"):Connect(function()
 		takeText.Visible = false
 	end), "Disconnect")

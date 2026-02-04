@@ -1,0 +1,24 @@
+{
+  "className": "TextLabel",
+  "properties": {
+    "BackgroundColor3": [1, 1, 1],
+    "BackgroundTransparency": 1,
+    "BorderSizePixel": 0,
+    "FontFace": {
+      "family": "rbxasset://fonts/families/SourceSansPro.json",
+      "weight": "Regular",
+      "style": "Normal",
+      "cachedFaceId": null
+    },
+    "Position": [[0.0, 10.0], [0.0, 27.0]],
+    "Size": [[1.0, -10.0], [0.0, 15.0]],
+    "Text": "Select something to use this tool.",
+    "TextColor3": [1, 1, 1],
+    "TextScaled": true,
+    "TextSize": 14,
+    "TextStrokeTransparency": 0.5,
+    "TextWrapped": true,
+    "TextXAlignment": "Left",
+    "Visible": false
+  }
+}

@@ -1,14 +1,16 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
--- Espera o Loader terminar de mover todos os arquivos
-ReplicatedStorage:WaitForChild("LoaderReady")
-
 local CardSystem = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Systems"):WaitForChild("CardSystem"))
 local tool = script.Parent
 local cardEvent = tool:WaitForChild("RemoteEvent")
 
 cardEvent.OnServerEvent:Connect(function(player, target, message)
+	-- VALIDAR SE É OFFICIAL (Crítico #1: Segurança)
+	if not player.Team or player.Team.Name ~= "Officials" then
+		warn("[AntiHack] Non-official tried to give red card:", player.Name)
+		return
+	end
 	
 	if target ~= nil and target.Parent:FindFirstChild("Humanoid") then
 		local localPlayer = Players:FindFirstChild(target.Parent.Name)
