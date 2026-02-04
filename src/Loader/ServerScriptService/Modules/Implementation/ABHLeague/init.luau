@@ -587,13 +587,12 @@ function ABHLeague:ThrowOff(spawner: Player?)
 				-- Raposa: Trava movimento e pulo ao pegar a bola
 				LockPlayerToForceField(player, forceField)
 
-				-- Teleport to ball for consistent pickup experience
-				-- Safety Check: Validar posição antes do TP
-				local safePos = Vector3.new(ballInstance.Position.X, ballInstance.Position.Y + 3, ballInstance.Position.Z)
-				if ballInstance.Position.Y < -50 or ballInstance.Position.Y > 200 then
-					safePos = Vector3.new(0, 5, 0) -- Fallback seguro
-				end
+				-- Teleport to center of ForceField at GROUND LEVEL
+				-- Usar Y fixo de 3 para sempre ficar no chao
+				local safePos = Vector3.new(ballInstance.Position.X, 3, ballInstance.Position.Z)
 				humanoidRootPart.CFrame = CFrame.new(safePos)
+				humanoidRootPart.AssemblyLinearVelocity = Vector3.zero
+				humanoidRootPart.AssemblyAngularVelocity = Vector3.zero
 				return
 			end
 		end
@@ -603,9 +602,10 @@ function ABHLeague:ThrowOff(spawner: Player?)
 		-- Se for o time adversario, expulsamos
 		if isAllowedTeam then
 			-- Se ja foi pego e nao e o taker, ou se esta tentando sair, volta pro centro
-			-- VALIDAR SE BALL EXISTE (evita void TP)
+			-- Usar Y fixo de 3 para sempre ficar no chao
 			if ballInstance and ballInstance.Parent then
-				humanoidRootPart.CFrame = CFrame.new(ballInstance.Position + Vector3.new(0, 3, 0))
+				humanoidRootPart.CFrame = CFrame.new(ballInstance.Position.X, 3, ballInstance.Position.Z)
+				humanoidRootPart.AssemblyLinearVelocity = Vector3.zero
 			end
 		else
 			-- Time adversario: Expulsa para a sua metade
