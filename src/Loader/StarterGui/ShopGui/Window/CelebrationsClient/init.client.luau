@@ -50,12 +50,14 @@ local Content = MainFrame:WaitForChild("Content")
 
 -- Painéis principais
 local ShopArea = Content:WaitForChild("ShopArea")
-local Sidebar = Content:WaitForChild("Sidebar")
 local PreviewPanel = Content:WaitForChild("PreviewPanel")
+
+-- Header (close button)
+local Header = MainFrame:WaitForChild("Header")
+local CloseButton = Header:WaitForChild("CloseButton")
 
 -- Elementos dentro dos painéis
 local ShopScroller = ShopArea:WaitForChild("ShopScroller")
-local InventoryScroller = Sidebar:WaitForChild("InventoryScroller")
 local EmoteName = PreviewPanel:WaitForChild("EmoteName")
 local EmotePreview = PreviewPanel:WaitForChild("EmotePreview")
 local BuyButton = PreviewPanel:WaitForChild("BuyButton")
@@ -84,6 +86,14 @@ local function setBlurEnabled(enabled: boolean)
 	})
 	tween:Play()
 end
+
+--// ============================================================================
+--// SETOR: FECHAR LOJA (CloseButton)
+--// ============================================================================
+
+CloseButton.MouseButton1Click:Connect(function()
+	Window.Visible = false
+end)
 
 --// ============================================================================
 --// SETOR: TOOL HIDING
@@ -123,64 +133,25 @@ local isPlayingEmote = false
 --// SETOR: INVENTÁRIO
 --// ============================================================================
 
-function createInv()
-	for _, child in pairs(InventoryScroller:GetChildren()) do
-		if child:IsA("TextButton") then
-			child:Destroy()
+-- Inventário removido - equip é feito diretamente clicando no emote na loja
+local function updateEquipHighlights()
+	-- Atualiza visual de todos os cards na loja
+	for _, btn in pairs(ShopScroller:GetChildren()) do
+		if btn:IsA("TextButton") and btn:FindFirstChild("EmoteName") then
+			local emoteN = btn.EmoteName.Text
+			if emotesF:FindFirstChild(emoteN) then
+				-- Owned - highlight diferente se equipado
+				if selectedEmote == emoteN then
+					btn.BackgroundColor3 = Color3.fromRGB(0, 170, 127)
+				else
+					btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+				end
+			else
+				btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+			end
 		end
-	end
-
-	local btns = {}
-
-	for _, emote in pairs(emotesF:GetChildren()) do
-		local btn = script:FindFirstChild("PlayEmoteButton")
-		if btn then
-			btn = btn:Clone()
-		else
-			-- Criar botão simples se template não existir
-			btn = Instance.new("TextButton")
-			btn.Size = UDim2.new(1, -10, 0, 35)
-			btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-			btn.TextColor3 = Color3.new(1, 1, 1)
-			btn.Font = Enum.Font.GothamMedium
-			btn.TextSize = 12
-			local corner = Instance.new("UICorner")
-			corner.CornerRadius = UDim.new(0, 4)
-			corner.Parent = btn
-		end
-		
-		local emoteN = emote.Name
-		btn.Text = emoteN
-		btn.Name = emoteN
-
-		-- Highlight se for o emote selecionado
-		if selectedEmote == emoteN then
-			btn.BackgroundColor3 = Color3.fromRGB(0, 170, 127)
-		else
-			btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-		end
-
-		btn.MouseButton1Click:Connect(function()
-			selectedEmote = emoteN
-			EmoteEvent:FireServer("SELECT", emoteN)
-			createInv()
-			local msg = if IS_MOBILE then " (toque no botão 🎉)" else " (Pressione B para usar)"
-			print("Emote selecionado: " .. emoteN .. msg)
-		end)
-
-		table.insert(btns, btn)
-	end
-
-	table.sort(btns, function(a, b)
-		return a.Text < b.Text
-	end)
-
-	for _, btn in pairs(btns) do
-		btn.Parent = InventoryScroller
 	end
 end
-
-createInv()
 
 --// ============================================================================
 --// SETOR: LOJA
@@ -333,7 +304,7 @@ BuyButton.MouseButton1Click:Connect(function()
 			BuyButton.Text = "EQUIP"
 			BuyButton.BackgroundColor3 = Color3.fromRGB(0, 170, 127)
 			task.delay(0.3, function()
-				createInv()
+				updateEquipHighlights()
 				createShop()
 			end)
 		else
@@ -349,7 +320,7 @@ BuyButton.MouseButton1Click:Connect(function()
 		EmoteEvent:FireServer("SELECT", emoteN)
 		BuyButton.Text = "✓ EQUIPPED"
 		BuyButton.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
-		createInv()
+		updateEquipHighlights()
 		print("Emote equipado: " .. emoteN)
 	end
 end)
@@ -465,8 +436,8 @@ end)
 --// SETOR: EVENTOS DE ATUALIZAÇÃO
 --// ============================================================================
 
-emotesF.ChildAdded:Connect(createInv)
-emotesF.ChildRemoved:Connect(createInv)
+emotesF.ChildAdded:Connect(updateEquipHighlights)
+emotesF.ChildRemoved:Connect(updateEquipHighlights)
 
 allEmotes.ChildAdded:Connect(createShop)
 allEmotes.ChildRemoved:Connect(createShop)

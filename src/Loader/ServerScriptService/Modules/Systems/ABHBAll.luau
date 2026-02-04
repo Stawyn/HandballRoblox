@@ -314,8 +314,32 @@ function HandleBallTouch(ABHBall: SharedTypes.ABHBallInstance)
 			return
 		end
 		
-		-- Bloqueia pickup se o jogador estiver com KeeperTool equipada
+		-- Ricochetear bola se o jogador estiver com KeeperTool equipada (nunca captura)
 		if character:FindFirstChild("KeeperTool") then
+			local hrp = humanoidRootPart
+			if hrp and ABHBall.AssemblyLinearVelocity.Magnitude > 1 then
+				-- Calcular direção de rebote
+				local bounceDirection = (ABHBall.Position - hrp.Position).Unit
+				local bounceSpeed = math.clamp(ABHBall.AssemblyLinearVelocity.Magnitude * 0.5, 15, 60)
+				ABHBall.AssemblyLinearVelocity = bounceDirection * bounceSpeed + Vector3.new(0, 15, 0)
+				
+				-- Registrar estatística de Save se foi um chute
+				local wasShot = ABHBall:GetAttribute("IsShot") or ABHBall:GetAttribute("IsSOG")
+				if wasShot and not ABHBall:GetAttribute("Saved") then
+					ABHBall:SetAttribute("Saved", true)
+					GameStatistics.RecordEvent(player, "Save")
+					local shooter = informationFolder.LastThrow.Value :: Player?
+					if shooter and shooter ~= player then
+						GameStatistics.RecordEvent(shooter, "SavedShot")
+						GameStatistics.RecordEvent(shooter, "SOG")
+					end
+					task.delay(0.5, function()
+						if ABHBall and ABHBall.Parent then
+							ABHBall:SetAttribute("Saved", false)
+						end
+					end)
+				end
+			end
 			return
 		end
 
@@ -387,6 +411,8 @@ function HandleBallTouch(ABHBall: SharedTypes.ABHBallInstance)
 			end
 		end
 
+		-- Verificar se foi um chute para estatísticas de goleiro
+		local wasShot = ABHBall:GetAttribute("IsShot") or ABHBall:GetAttribute("IsSOG")
 		if player.Team and player.Team.Name:find("Goalkeeper") then
 			if wasShot then
 				-- Fix Race Condition #C4: Remover lógica de reset duplicada

@@ -1,8 +1,23 @@
 {
   "className": "Frame",
   "properties": {
-    "BackgroundColor3": [0.098, 0.098, 0.098],
-    "Size": [[0.22, 0.0], [1.0, 0.0]],
+    "BackgroundColor3": [
+      0.098,
+      0.098,
+      0.098
+    ],
+    "BackgroundTransparency": 1,
+    "Size": [
+      [
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0
+      ]
+    ],
+    "Visible": false,
     "ZIndex": 101
   }
 }
