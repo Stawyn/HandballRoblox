@@ -69,6 +69,7 @@ local BALL_TIMER = DATA_FOLDER:WaitForChild("BallTimer")
 local MATCH_VALUE = DATA_FOLDER:WaitForChild("Match")
 local MATCH_PAUSED = DATA_FOLDER:WaitForChild("MatchPaused")
 local HOME_GLT = CORE_FOLDER:WaitForChild("GLT"):WaitForChild("Home")
+local AWAY_GLT = CORE_FOLDER:WaitForChild("GLT"):WaitForChild("Away")
 
 local NETWORK_FOLDER = ReplicatedStorage:WaitForChild("Network") :: Folder
 local LEAGUE_EVENT = NETWORK_FOLDER:WaitForChild("LeagueEvent") :: RemoteEvent
